@@ -79,21 +79,31 @@ class ServiceWatcher(Star):
 
         while True:
             try:
-                # Check all subscribed services
+                # Prepare tasks for all services
+                tasks = []
                 for service_name, service in self.services.items():
-                    result = await self.status_checker.check_service(
+                    tasks.append(self.status_checker.check_service(
                         service_name,
                         service.api_url,
                         service.type
-                    )
+                    ))
 
-                    # If status changed, notify subscribers
-                    if result and result.get('changed'):
-                        logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
-                        await self._notify_status_change(service_name, result)
+                # Execute all checks concurrently
+                if tasks:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                    # Avoid rate limiting
-                    await asyncio.sleep(2)
+                    # Process results
+                    for idx, result in enumerate(results):
+                        service_name = list(self.services.keys())[idx]
+
+                        if isinstance(result, Exception):
+                            logger.error(f"[{service_name}] 检查失败: {result}")
+                            continue
+
+                        # If status changed, notify subscribers
+                        if result and result.get('changed'):
+                            logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
+                            await self._notify_status_change(service_name, result)
 
                 # Reset backoff on successful run
                 error_backoff = 5

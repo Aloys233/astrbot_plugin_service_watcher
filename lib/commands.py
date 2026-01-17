@@ -40,7 +40,8 @@ class CommandHandlers:
                 service_name,
                 service.api_url,
                 service.type,
-                ignore_cache=False
+                ignore_cache=False,
+                update_db=False  # Don't update DB on manual status check
             ))
 
         # Execute all checks in parallel
@@ -81,7 +82,8 @@ class CommandHandlers:
                 service_name,
                 service.api_url,
                 service.type,
-                ignore_cache=True
+                ignore_cache=True,
+                update_db=False  # Test command should not affect monitoring state
             )
 
             response = format_test_result(service_name, result)

@@ -124,9 +124,18 @@ class StatusChecker:
             service_name: str,
             api_url: str,
             service_type: str = "statuspage",
-            ignore_cache: bool = False
+            ignore_cache: bool = False,
+            update_db: bool = True
     ) -> Optional[Dict[str, any]]:
-        """Check service status and detect changes."""
+        """Check service status and detect changes.
+        
+        Args:
+            service_name: Name of the service
+            api_url: URL to fetch status from
+            service_type: Type of service (statuspage/rss)
+            ignore_cache: If True, ignore last_id comparison for changed flag
+            update_db: If True, update KV storage with new status ID
+        """
         if service_type == "statuspage":
             data = await self.api_client.fetch_json(service_name, api_url)
         else:
@@ -148,8 +157,10 @@ class StatusChecker:
 
         # First run - save status but don't trigger notification
         if last_id is None:
-            await self.star.put_kv_data(kv_key, current_id)
-            logger.info(f"[{service_name}] 首次初始化状态: {current_id}")
+            if update_db:
+                await self.star.put_kv_data(kv_key, current_id)
+                logger.info(f"[{service_name}] 首次初始化状态: {current_id}")
+            
             return {
                 'changed': False,  # First run is not a "change"
                 'data': data,
@@ -162,12 +173,12 @@ class StatusChecker:
         # Compare with previous status
         status_changed = ignore_cache or (current_id != last_id)
 
-        # Update storage only if changed
-        if status_changed:
+        # Update storage only if changed and update_db is True
+        if status_changed and update_db:
             await self.star.put_kv_data(kv_key, current_id)
             logger.info(f"[{service_name}] 状态变化: {last_id} -> {current_id}")
         else:
-            logger.debug(f"[{service_name}] 状态未变化")
+            logger.debug(f"[{service_name}] 状态未变化 (update_db={update_db})")
 
         return {
             'changed': status_changed,
