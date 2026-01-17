@@ -1,0 +1,117 @@
+{
+  "github": {
+    "name": "GitHub",
+    "api_url": "https://www.githubstatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "openai": {
+    "name": "OpenAI",
+    "api_url": "https://status.openai.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "cloudflare": {
+    "name": "Cloudflare",
+    "api_url": "https://www.cloudflarestatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "npm": {
+    "name": "NPM",
+    "api_url": "https://status.npmjs.org/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "pypi": {
+    "name": "PyPI",
+    "api_url": "https://status.python.org/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "digitalocean": {
+    "name": "DigitalOcean",
+    "api_url": "https://status.digitalocean.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "vercel": {
+    "name": "Vercel",
+    "api_url": "https://www.vercel-status.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "heroku": {
+    "name": "Heroku",
+    "api_url": "https://status.heroku.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "travisci": {
+    "name": "Travis CI",
+    "api_url": "https://www.traviscistatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "circleci": {
+    "name": "CircleCI",
+    "api_url": "https://status.circleci.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "sentry": {
+    "name": "Sentry",
+    "api_url": "https://status.sentry.io/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "datadog": {
+    "name": "Datadog",
+    "api_url": "https://status.datadoghq.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "linode": {
+    "name": "Linode",
+    "api_url": "https://status.linode.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "discord": {
+    "name": "Discord",
+    "api_url": "https://discordstatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "notion": {
+    "name": "Notion",
+    "api_url": "https://status.notion.so/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "figma": {
+    "name": "Figma",
+    "api_url": "https://status.figma.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "dropbox": {
+    "name": "Dropbox",
+    "api_url": "https://status.dropbox.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "zoom": {
+    "name": "Zoom",
+    "api_url": "https://status.zoom.us/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "trello": {
+    "name": "Trello",
+    "api_url": "https://trello.status.atlassian.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "canva": {
+    "name": "Canva",
+    "api_url": "https://www.canvastatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "epicgames": {
+    "name": "Epic Games",
+    "api_url": "https://status.epicgames.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "reddit": {
+    "name": "Reddit",
+    "api_url": "https://www.redditstatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "ubisoft": {
+    "name": "Ubisoft",
+    "api_url": "https://status.ubisoft.com/api/v2/summary.json",
+    "type": "statuspage"
+  }
+}

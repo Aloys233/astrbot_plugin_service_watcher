@@ -1,6 +1,7 @@
 """Service Status Watcher Plugin - Main Entry Point."""
 
 import asyncio
+import os
 from typing import Optional, List
 from astrbot.api.star import Star, register
 from astrbot.api.event import AstrMessageEvent, filter, MessageChain
@@ -45,7 +46,8 @@ class ServiceWatcher(Star):
             f"加载配置: check_interval={self.config.get('check_interval')}, targets={len(self.config.get('notify_targets', []))}")
 
         # Load enabled services
-        self.services = ServiceRegistry.load_from_config(self.config)
+        services_path = os.path.join(os.path.dirname(__file__), "services.json")
+        self.services = ServiceRegistry.load_from_config(self.config, services_path)
 
         # Load other settings
         self.check_interval = self.config.get("check_interval", 60)

@@ -1,19 +1,4 @@
 {
-  "enable_github": {
-    "type": "bool",
-    "default": false,
-    "description": "监控 GitHub 状态"
-  },
-  "enable_openai": {
-    "type": "bool",
-    "default": false,
-    "description": "监控 OpenAI 状态"
-  },
-  "enable_cloudflare": {
-    "type": "bool",
-    "default": false,
-    "description": "监控 Cloudflare 状态"
-  },
   "check_interval": {
     "type": "int",
     "default": 60,
@@ -24,5 +9,162 @@
     "default": [],
     "description": "接收状态变化通知的会话列表（unified_msg_origin）",
     "hint": "填入需要接收服务状态通知的会话 ID。可以通过发送 /sid 指令获取当前会话的 unified_msg_origin"
+  },
+  "service_groups": {
+    "description": "服务监控开关",
+    "type": "object",
+    "items": {
+      "ai_services": {
+        "description": "AI 服务",
+        "type": "object",
+        "items": {
+          "enable_openai": {
+            "type": "bool",
+            "default": false,
+            "description": "OpenAI"
+          }
+        }
+      },
+      "cloud_services": {
+        "description": "云服务与基础设施",
+        "type": "object",
+        "items": {
+          "enable_cloudflare": {
+            "type": "bool",
+            "default": false,
+            "description": "Cloudflare"
+          },
+          "enable_digitalocean": {
+            "type": "bool",
+            "default": false,
+            "description": "DigitalOcean"
+          },
+          "enable_vercel": {
+            "type": "bool",
+            "default": false,
+            "description": "Vercel"
+          },
+          "enable_heroku": {
+            "type": "bool",
+            "default": false,
+            "description": "Heroku"
+          },
+          "enable_linode": {
+            "type": "bool",
+            "default": false,
+            "description": "Linode"
+          }
+        }
+      },
+      "dev_ops_services": {
+        "description": "开发与运维工具",
+        "type": "object",
+        "items": {
+          "enable_github": {
+            "type": "bool",
+            "default": false,
+            "description": "GitHub"
+          },
+          "enable_npm": {
+            "type": "bool",
+            "default": false,
+            "description": "NPM"
+          },
+          "enable_pypi": {
+            "type": "bool",
+            "default": false,
+            "description": "PyPI"
+          },
+          "enable_travisci": {
+            "type": "bool",
+            "default": false,
+            "description": "Travis CI"
+          },
+          "enable_circleci": {
+            "type": "bool",
+            "default": false,
+            "description": "CircleCI"
+          },
+          "enable_sentry": {
+            "type": "bool",
+            "default": false,
+            "description": "Sentry"
+          },
+          "enable_datadog": {
+            "type": "bool",
+            "default": false,
+            "description": "Datadog"
+          }
+        }
+      },
+      "communication_services": {
+        "description": "通讯与社交",
+        "type": "object",
+        "items": {
+          "enable_discord": {
+            "type": "bool",
+            "default": false,
+            "description": "Discord"
+          },
+          "enable_reddit": {
+            "type": "bool",
+            "default": false,
+            "description": "Reddit"
+          },
+          "enable_zoom": {
+            "type": "bool",
+            "default": false,
+            "description": "Zoom"
+          }
+        }
+      },
+      "productivity_services": {
+        "description": "生产力与设计工具",
+        "type": "object",
+        "items": {
+          "enable_notion": {
+            "type": "bool",
+            "default": false,
+            "description": "Notion"
+          },
+          "enable_figma": {
+            "type": "bool",
+            "default": false,
+            "description": "Figma"
+          },
+          "enable_dropbox": {
+            "type": "bool",
+            "default": false,
+            "description": "Dropbox"
+          },
+          "enable_trello": {
+            "type": "bool",
+            "default": false,
+            "description": "Trello"
+          },
+          "enable_canva": {
+            "type": "bool",
+            "default": false,
+            "description": "Canva"
+          }
+        }
+      },
+      "gaming_services": {
+        "description": "游戏服务",
+        "type": "object",
+        "items": {
+          "enable_epicgames": {
+            "type": "bool",
+            "default": false,
+            "description": "Epic Games"
+          },
+          "enable_ubisoft": {
+            "type": "bool",
+            "default": false,
+            "description": "Ubisoft"
+          }
+        }
+      }
+    }
   }
 }
