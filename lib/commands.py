@@ -1,6 +1,7 @@
 """Command handlers for service status monitoring."""
 
 from astrbot.api.event import AstrMessageEvent
+import asyncio
 from typing import AsyncGenerator
 from .services import ServiceRegistry
 from .status_checker import StatusChecker
@@ -27,15 +28,31 @@ class CommandHandlers:
             return
 
         # Fetch status for all services
+        # Fetch status for all services concurrently
         services_status = {}
+
+        # Prepare tasks
+        service_names = []
+        tasks = []
         for service_name, service in self.services.items():
-            result = await self.status_checker.check_service(
+            service_names.append(service_name)
+            tasks.append(self.status_checker.check_service(
                 service_name,
                 service.api_url,
                 service.type,
                 ignore_cache=False
-            )
-            services_status[service_name] = result
+            ))
+
+        # Execute all checks in parallel
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Collect results
+        for idx, result in enumerate(results):
+            name = service_names[idx]
+            if isinstance(result, Exception):
+                # Should be handled inside check_service, but just in case
+                continue
+            services_status[name] = result
 
         # Format and return
         response = format_status_list(services_status)

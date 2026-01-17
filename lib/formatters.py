@@ -1,10 +1,19 @@
 """Message formatting utilities."""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, TypedDict, Any
 from .status_checker import StatusChecker
 
 
-def format_status_change_message(service_name: str, result: Dict) -> str:
+class ServiceStatusResult(TypedDict):
+    changed: bool
+    data: Dict[str, Any]
+    type: str
+    indicator: str
+    description: str
+    info: Dict[str, Any]
+
+
+def format_status_change_message(service_name: str, result: ServiceStatusResult) -> str:
     """Format a status change notification message."""
     indicator = result['indicator']
     description = result['description']
@@ -42,7 +51,7 @@ def format_status_change_message(service_name: str, result: Dict) -> str:
     return message
 
 
-def format_status_list(services_status: Dict[str, Dict]) -> str:
+def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]) -> str:
     """Format status list for /servicestatus command."""
     if not services_status:
         return "未配置任何服务订阅"
@@ -80,7 +89,7 @@ def format_status_list(services_status: Dict[str, Dict]) -> str:
     return response.strip()
 
 
-def format_test_result(service_name: str, result: Optional[Dict]) -> str:
+def format_test_result(service_name: str, result: Optional[ServiceStatusResult]) -> str:
     """Format test command result."""
     if result is None:
         return f"未能获取到 {service_name} 的状态信息"

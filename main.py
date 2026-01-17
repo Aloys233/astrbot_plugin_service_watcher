@@ -9,7 +9,7 @@ from astrbot.api import logger
 from .lib import ServiceRegistry, StatusChecker, format_status_change_message, CommandHandlers
 
 
-@register("service_watcher", "Service Watcher", "监控互联网服务状态并推送更新", "0.0.1")
+@register("service_watcher", "Aloys233", "监控互联网服务状态并推送更新", "0.0.1")
 class ServiceWatcher(Star):
     """服务状态监控插件，通过 JSON API 监控互联网服务状态"""
 
@@ -40,7 +40,9 @@ class ServiceWatcher(Star):
     def _load_config(self):
         """Load configuration from plugin config."""
         # Debug: print actual config received
-        logger.debug(f"读取到的插件配置: {dict(self.config)}")
+        # Debug: check_interval and notify_targets count, avoid logging sensitive check urls
+        logger.debug(
+            f"加载配置: check_interval={self.config.get('check_interval')}, targets={len(self.config.get('notify_targets', []))}")
 
         # Load enabled services
         self.services = ServiceRegistry.load_from_config(self.config)
@@ -70,6 +72,8 @@ class ServiceWatcher(Star):
 
     async def _monitor_loop(self):
         """Background monitoring loop."""
+        error_backoff = 5  # Initial backoff in seconds
+
         # Wait for system initialization
         await asyncio.sleep(5)
 
@@ -91,11 +95,16 @@ class ServiceWatcher(Star):
                     # Avoid rate limiting
                     await asyncio.sleep(2)
 
+                # Reset backoff on successful run
+                error_backoff = 5
+
                 # Wait for next check
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
                 logger.error(f"监控循环出错: {e}")
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(error_backoff)
+                # Exponential backoff with max 60s
+                error_backoff = min(error_backoff * 2, 60)
 
     # Command handlers
 
@@ -115,4 +124,8 @@ class ServiceWatcher(Star):
         """Clean up resources."""
         if self.monitoring_task and not self.monitoring_task.done():
             self.monitoring_task.cancel()
-            logger.info("服务监控插件已停止")
+
+        if self.status_checker:
+            await self.status_checker.close()
+
+        logger.info("服务监控插件已停止")

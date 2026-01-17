@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 import feedparser
 from typing import Optional, Dict, Any
 from astrbot.api import logger
@@ -7,31 +8,46 @@ from astrbot.api import logger
 class StatusAPIClient:
     """HTTP client for fetching service status from various sources."""
 
-    @staticmethod
-    async def fetch_json(service_name: str, api_url: str) -> Optional[dict]:
+    def __init__(self):
+        self.session: Optional[aiohttp.ClientSession] = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create client session."""
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession()
+        return self.session
+
+    async def close(self):
+        """Close client session."""
+        if self.session and not self.session.closed:
+            await self.session.close()
+
+    async def fetch_json(self, service_name: str, api_url: str) -> Optional[dict]:
         """Fetch JSON data from API."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        logger.error(f"[{service_name}] API请求失败: HTTP {response.status}")
-                        return None
-                    return await response.json()
+            session = await self._get_session()
+            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    logger.error(f"[{service_name}] API请求失败: HTTP {response.status}")
+                    return None
+                return await response.json()
         except Exception as e:
             logger.error(f"[{service_name}] 获取 JSON 状态失败: {e}")
             return None
 
-    @staticmethod
-    async def fetch_rss(service_name: str, rss_url: str) -> Optional[dict]:
+    async def fetch_rss(self, service_name: str, rss_url: str) -> Optional[dict]:
         """Fetch and parse RSS feed."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(rss_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    if response.status != 200:
-                        logger.error(f"[{service_name}] RSS请求失败: HTTP {response.status}")
-                        return None
-                    content = await response.read()
-                    return feedparser.parse(content)
+            session = await self._get_session()
+            async with session.get(rss_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    logger.error(f"[{service_name}] RSS请求失败: HTTP {response.status}")
+                    return None
+                content = await response.read()
+
+                # Parse in executor to avoid blocking event loop
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(None, feedparser.parse, content)
         except Exception as e:
             logger.error(f"[{service_name}] 获取 RSS 状态失败: {e}")
             return None
@@ -62,6 +78,10 @@ class StatusChecker:
         """
         self.star = star
         self.api_client = StatusAPIClient()
+
+    async def close(self):
+        """Cleanup resources."""
+        await self.api_client.close()
 
     def get_status_info(self, data: Any, service_type: str) -> Dict[str, Any]:
         """Extract status information based on service type."""
