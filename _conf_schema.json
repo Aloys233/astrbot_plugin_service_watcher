@@ -1,0 +1,28 @@
+{
+  "enable_github": {
+    "type": "bool",
+    "default": false,
+    "description": "监控 GitHub 状态"
+  },
+  "enable_openai": {
+    "type": "bool",
+    "default": false,
+    "description": "监控 OpenAI 状态"
+  },
+  "enable_cloudflare": {
+    "type": "bool",
+    "default": false,
+    "description": "监控 Cloudflare 状态"
+  },
+  "check_interval": {
+    "type": "int",
+    "default": 60,
+    "description": "检查间隔时间（秒）"
+  },
+  "notify_targets": {
+    "type": "list",
+    "default": [],
+    "description": "接收状态变化通知的会话列表（unified_msg_origin）",
+    "hint": "填入需要接收服务状态通知的会话 ID。可以通过发送 /sid 指令获取当前会话的 unified_msg_origin"
+  }
+}

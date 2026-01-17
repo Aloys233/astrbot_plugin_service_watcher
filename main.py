@@ -1,24 +1,118 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
+"""Service Status Watcher Plugin - Main Entry Point."""
+
+import asyncio
+from typing import Optional, List
+from astrbot.api.star import Star, register
+from astrbot.api.event import AstrMessageEvent, filter, MessageChain
 from astrbot.api import logger
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+from .lib import ServiceRegistry, StatusChecker, format_status_change_message, CommandHandlers
+
+
+@register("service_watcher", "Service Watcher", "监控互联网服务状态并推送更新", "0.0.1")
+class ServiceWatcher(Star):
+    """服务状态监控插件，通过 JSON API 监控互联网服务状态"""
+
+    def __init__(self, context, config) -> None:
         super().__init__(context)
+        self.config = config  # 插件配置通过参数传入
+        self.services = {}
+        self.check_interval: int = 60
+        self.notify_targets: List[str] = []  # 订阅通知的会话列表
+        self.monitoring_task: Optional[asyncio.Task] = None
 
+        # Initialize modules
+        self.status_checker = StatusChecker(self)  # Pass self (Star instance) for KV storage
+        self.command_handlers = None  # Will be initialized after config load
+    
     async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+        """Initialize plugin and start monitoring."""
+        # Load configuration
+        self._load_config()
 
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+        # Initialize command handlers with loaded services
+        self.command_handlers = CommandHandlers(self.status_checker, self.services)
 
+        # Start background monitoring
+        self.monitoring_task = asyncio.create_task(self._monitor_loop())
+        logger.info(f"服务监控插件已启动，监控间隔: {self.check_interval}秒，通知目标: {len(self.notify_targets)}个")
+
+    def _load_config(self):
+        """Load configuration from plugin config."""
+        # Debug: print actual config received
+        logger.debug(f"读取到的插件配置: {dict(self.config)}")
+
+        # Load enabled services
+        self.services = ServiceRegistry.load_from_config(self.config)
+
+        # Load other settings
+        self.check_interval = self.config.get("check_interval", 60)
+        self.notify_targets = self.config.get("notify_targets", [])
+
+        logger.info(f"已加载 {len(self.services)} 个服务订阅")
+
+    async def _notify_status_change(self, service_name: str, result: dict):
+        """Notify all subscribed targets about status change."""
+        if not self.notify_targets:
+            logger.debug(f"[{service_name}] 状态变化但无通知目标")
+            return
+
+        # Format notification message
+        message_text = format_status_change_message(service_name, result)
+
+        for target in self.notify_targets:
+            try:
+                message_chain = MessageChain().message(message_text)
+                await self.context.send_message(target, message_chain)
+                logger.info(f"[{service_name}] 已发送状态变化通知到: {target}")
+            except Exception as e:
+                logger.error(f"[{service_name}] 发送通知到 {target} 失败: {e}")
+
+    async def _monitor_loop(self):
+        """Background monitoring loop."""
+        # Wait for system initialization
+        await asyncio.sleep(5)
+
+        while True:
+            try:
+                # Check all subscribed services
+                for service_name, service in self.services.items():
+                    result = await self.status_checker.check_service(
+                        service_name,
+                        service.api_url,
+                        service.type
+                    )
+
+                    # If status changed, notify subscribers
+                    if result and result.get('changed'):
+                        logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
+                        await self._notify_status_change(service_name, result)
+
+                    # Avoid rate limiting
+                    await asyncio.sleep(2)
+
+                # Wait for next check
+                await asyncio.sleep(self.check_interval)
+            except Exception as e:
+                logger.error(f"监控循环出错: {e}")
+                await asyncio.sleep(60)  # Wait 1 minute before retry
+
+    # Command handlers
+
+    @filter.command("servicestatus")
+    async def cmd_status(self, event: AstrMessageEvent):
+        """Query all service statuses."""
+        async for result in self.command_handlers.handle_servicestatus(event):
+            yield result
+
+    @filter.command("servicetest")
+    async def cmd_test(self, event: AstrMessageEvent, service_name: str):
+        """Test service status monitoring."""
+        async for result in self.command_handlers.handle_servicetest(event, service_name):
+            yield result
+    
     async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        """Clean up resources."""
+        if self.monitoring_task and not self.monitoring_task.done():
+            self.monitoring_task.cancel()
+            logger.info("服务监控插件已停止")
