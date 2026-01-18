@@ -44,15 +44,15 @@
             "default": false,
             "description": "Vercel"
           },
-          "enable_heroku": {
-            "type": "bool",
-            "default": false,
-            "description": "Heroku"
-          },
           "enable_linode": {
             "type": "bool",
             "default": false,
             "description": "Linode"
+          },
+          "enable_aliyun": {
+            "type": "bool",
+            "default": false,
+            "description": "阿里云"
           }
         }
       },
@@ -122,11 +122,6 @@
         "description": "生产力与设计工具",
         "type": "object",
         "items": {
-          "enable_notion": {
-            "type": "bool",
-            "default": false,
-            "description": "Notion"
-          },
           "enable_figma": {
             "type": "bool",
             "default": false,
@@ -157,11 +152,6 @@
             "type": "bool",
             "default": false,
             "description": "Epic Games"
-          },
-          "enable_ubisoft": {
-            "type": "bool",
-            "default": false,
-            "description": "Ubisoft"
           }
         }
       }

@@ -34,11 +34,6 @@
     "api_url": "https://www.vercel-status.com/api/v2/summary.json",
     "type": "statuspage"
   },
-  "heroku": {
-    "name": "Heroku",
-    "api_url": "https://status.heroku.com/api/v2/summary.json",
-    "type": "statuspage"
-  },
   "travisci": {
     "name": "Travis CI",
     "api_url": "https://www.traviscistatus.com/api/v2/summary.json",
@@ -67,11 +62,6 @@
   "discord": {
     "name": "Discord",
     "api_url": "https://discordstatus.com/api/v2/summary.json",
-    "type": "statuspage"
-  },
-  "notion": {
-    "name": "Notion",
-    "api_url": "https://status.notion.so/api/v2/summary.json",
     "type": "statuspage"
   },
   "figma": {
@@ -109,9 +99,9 @@
     "api_url": "https://www.redditstatus.com/api/v2/summary.json",
     "type": "statuspage"
   },
-  "ubisoft": {
-    "name": "Ubisoft",
-    "api_url": "https://status.ubisoft.com/api/v2/summary.json",
-    "type": "statuspage"
+  "aliyun": {
+    "name": "Alibaba Cloud",
+    "api_url": "https://status.aliyun.com/api/status/listEventInProgress",
+    "type": "aliyun"
   }
 }

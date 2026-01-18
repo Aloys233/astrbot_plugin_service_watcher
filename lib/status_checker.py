@@ -14,7 +14,7 @@ class StatusAPIClient:
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create client session."""
         if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
+            self.session = aiohttp.ClientSession(trust_env=True)
         return self.session
 
     async def close(self):
@@ -32,7 +32,9 @@ class StatusAPIClient:
                     return None
                 return await response.json()
         except Exception as e:
-            logger.error(f"[{service_name}] 获取 JSON 状态失败: {e}")
+            import traceback
+            logger.error(f"[{service_name}] 获取 JSON 状态失败: {repr(e)}")
+            logger.debug(traceback.format_exc())
             return None
 
     async def fetch_rss(self, service_name: str, rss_url: str) -> Optional[dict]:
@@ -49,9 +51,13 @@ class StatusAPIClient:
                 loop = asyncio.get_running_loop()
                 return await loop.run_in_executor(None, feedparser.parse, content)
         except Exception as e:
-            logger.error(f"[{service_name}] 获取 RSS 状态失败: {e}")
+            import traceback
+            logger.error(f"[{service_name}] 获取 RSS 状态失败: {repr(e)}")
+            logger.debug(traceback.format_exc())
             return None
 
+
+from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter
 
 class StatusChecker:
     """Check service status and detect changes for multiple types."""
@@ -78,41 +84,15 @@ class StatusChecker:
         """
         self.star = star
         self.api_client = StatusAPIClient()
+        self.adapters = {
+            'statuspage': StatusPageAdapter(),
+            'rss': RSSAdapter(),
+            'aliyun': AliyunAdapter()
+        }
 
     async def close(self):
         """Cleanup resources."""
         await self.api_client.close()
-
-    def get_status_info(self, data: Any, service_type: str) -> Dict[str, Any]:
-        """Extract status information based on service type."""
-        if service_type == "statuspage":
-            status = data.get('status', {})
-            indicator = status.get('indicator', 'none')
-            description = status.get('description', 'Unknown')
-            return {
-                'indicator': indicator,
-                'description': description,
-                'raw_status': status,
-                'id': f"{indicator}|{description}"
-            }
-        elif service_type == "rss":
-            entries = data.get('entries', [])
-            if not entries:
-                return {
-                    'indicator': 'none',
-                    'description': 'No updates',
-                    'id': 'empty'
-                }
-            latest = entries[0]
-            # Use entry ID or published date as unique identifier
-            entry_id = latest.get('id') or latest.get('published') or latest.get('link')
-            return {
-                'indicator': 'rss_new',
-                'description': latest.get('title', '新动态'),
-                'id': entry_id,
-                'entry': latest
-            }
-        return {'indicator': 'unknown', 'description': 'Unknown type', 'id': 'unknown'}
 
     @staticmethod
     def get_emoji(indicator: str) -> str:
@@ -132,20 +112,20 @@ class StatusChecker:
         Args:
             service_name: Name of the service
             api_url: URL to fetch status from
-            service_type: Type of service (statuspage/rss)
+            service_type: Type of service (statuspage/rss/aliyun)
             ignore_cache: If True, ignore last_id comparison for changed flag
             update_db: If True, update KV storage with new status ID
         """
-        if service_type == "statuspage":
-            data = await self.api_client.fetch_json(service_name, api_url)
-        else:
-            data = await self.api_client.fetch_rss(service_name, api_url)
-
-        if not data:
+        adapter = self.adapters.get(service_type)
+        if not adapter:
+            logger.error(f"[{service_name}] Unknown service type: {service_type}")
             return None
 
-        # Get current status
-        status_info = self.get_status_info(data, service_type)
+        status_info = await adapter.fetch_status(self.api_client, service_name, api_url)
+
+        if not status_info:
+            return None
+
         current_id = status_info['id']
 
         # Check KV storage for last status (using Star's async KV methods)
@@ -163,7 +143,7 @@ class StatusChecker:
             
             return {
                 'changed': False,  # First run is not a "change"
-                'data': data,
+                'data': status_info.get('raw_status'),
                 'type': service_type,
                 'indicator': status_info['indicator'],
                 'description': status_info['description'],
@@ -182,7 +162,7 @@ class StatusChecker:
 
         return {
             'changed': status_changed,
-            'data': data,
+            'data': status_info.get('raw_status'),
             'type': service_type,
             'indicator': status_info['indicator'],
             'description': status_info['description'],
