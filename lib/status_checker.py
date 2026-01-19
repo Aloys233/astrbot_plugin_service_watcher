@@ -1,7 +1,8 @@
-import aiohttp
 import asyncio
+from typing import Optional, Dict
+
+import aiohttp
 import feedparser
-from typing import Optional, Dict, Any
 from astrbot.api import logger
 
 
