@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送以 v 开头的 tag 时触发，例如 v1.0.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 需要写权限以创建 release
+    
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 获取 tag 名称
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: 打包项目
+        run: |
+          # 创建项目压缩包，排除不必要的文件
+          zip -r astrbot_plugin_service_watcher-${{ steps.tag.outputs.TAG }}.zip . \
+            -x "*.git*" \
+            -x "*__pycache__*" \
+            -x "*.pyc" \
+            -x "*.idea*" \
+            -x "*.vscode*"
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: astrbot_plugin_service_watcher-${{ steps.tag.outputs.TAG }}.zip
+          generate_release_notes: true  # 自动生成 release 说明
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
