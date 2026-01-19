@@ -74,6 +74,8 @@ class ServiceWatcher(Star):
 
     async def _monitor_loop(self):
         """Background monitoring loop."""
+        import random
+        
         error_backoff = 5  # Initial backoff in seconds
 
         # Wait for system initialization
@@ -81,36 +83,33 @@ class ServiceWatcher(Star):
 
         while True:
             try:
-                # Prepare tasks for all services
-                tasks = []
+                # Check each service with staggered delays
                 for service_name, service in self.services.items():
-                    tasks.append(self.status_checker.check_service(
-                        service_name,
-                        service.api_url,
-                        service.type
-                    ))
+                    try:
+                        # Add random delay between 1-5 seconds to stagger requests
+                        delay = random.uniform(1, 5)
+                        await asyncio.sleep(delay)
 
-                # Execute all checks concurrently
-                if tasks:
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                    # Process results
-                    for idx, result in enumerate(results):
-                        service_name = list(self.services.keys())[idx]
-
-                        if isinstance(result, Exception):
-                            logger.error(f"[{service_name}] 检查失败: {result}")
-                            continue
+                        # Check service status
+                        result = await self.status_checker.check_service(
+                            service_name,
+                            service.api_url,
+                            service.type
+                        )
 
                         # If status changed, notify subscribers
                         if result and result.get('changed'):
                             logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
                             await self._notify_status_change(service_name, result)
 
+                    except Exception as e:
+                        logger.error(f"[{service_name}] 检查失败: {e}")
+                        continue
+
                 # Reset backoff on successful run
                 error_backoff = 5
 
-                # Wait for next check
+                # Wait for next check interval
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
                 logger.error(f"监控循环出错: {e}")
