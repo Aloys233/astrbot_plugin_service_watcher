@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Any
-
 from astrbot.api import logger
 
 

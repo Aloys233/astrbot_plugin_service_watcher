@@ -1,12 +1,11 @@
 """Command handlers for service status monitoring."""
 
+from astrbot.api.event import AstrMessageEvent
 import asyncio
 from typing import AsyncGenerator
-
-from astrbot.api.event import AstrMessageEvent
-
-from .formatters import format_status_list, format_test_result
+from .services import ServiceRegistry
 from .status_checker import StatusChecker
+from .formatters import format_status_list, format_test_result
 
 
 class CommandHandlers:
