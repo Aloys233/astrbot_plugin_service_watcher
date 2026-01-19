@@ -26,6 +26,18 @@ class BaseAdapter(ABC):
 class StatusPageAdapter(BaseAdapter):
     """Adapter for standard StatusPage.io JSON API."""
 
+    STATUS_TRANSLATIONS = {
+        'All Systems Operational': '所有系统运行正常',
+        'Operational': '运行正常',
+        'Major Service Outage': '严重服务中断',
+        'Partial System Outage': '部分系统中断',
+        'Minor Service Outage': '轻微服务中断',
+        'Degraded Performance': '性能降级',
+        'Under Maintenance': '正在维护',
+        'Maintenance': '维护中',
+        'Unknown': '未知'
+    }
+
     async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
         data = await client.fetch_json(service_name, api_url)
         if not data:
@@ -33,7 +45,10 @@ class StatusPageAdapter(BaseAdapter):
 
         status = data.get('status', {})
         indicator = status.get('indicator', 'none')
-        description = status.get('description', 'Unknown')
+        raw_description = status.get('description', 'Unknown')
+
+        # Translate description
+        description = self.STATUS_TRANSLATIONS.get(raw_description, raw_description)
 
         return {
             'indicator': indicator,
@@ -55,7 +70,7 @@ class RSSAdapter(BaseAdapter):
         if not entries:
             return {
                 'indicator': 'none',
-                'description': 'No updates',
+                'description': '暂无更新',
                 'id': 'empty',
                 'raw_status': data
             }
@@ -88,7 +103,7 @@ class AliyunAdapter(BaseAdapter):
         if not events:
             return {
                 'indicator': 'none',
-                'description': 'All systems operational',
+                'description': '所有系统运行正常',
                 'id': 'empty_list',
                 'raw_status': data
             }
@@ -99,7 +114,7 @@ class AliyunAdapter(BaseAdapter):
 
         return {
             'indicator': 'minor',  # Assume minor if there are events
-            'description': f"{len(events)} active events",
+            'description': f"{len(events)} 个活跃事件",
             'id': f"events_{event_ids}",
             'raw_status': data
         }

@@ -122,13 +122,13 @@ class ServiceWatcher(Star):
 
     @filter.command("servicestatus")
     async def cmd_status(self, event: AstrMessageEvent):
-        """Query all service statuses."""
+        """查询所有服务状态"""
         async for result in self.command_handlers.handle_servicestatus(event):
             yield result
 
     @filter.command("servicetest")
     async def cmd_test(self, event: AstrMessageEvent, service_name: str):
-        """Test service status monitoring."""
+        """测试服务状态监控"""
         async for result in self.command_handlers.handle_servicetest(event, service_name):
             yield result
     

@@ -100,7 +100,7 @@
     "type": "statuspage"
   },
   "aliyun": {
-    "name": "Alibaba Cloud",
+    "name": "阿里云",
     "api_url": "https://status.aliyun.com/api/status/listEventInProgress",
     "type": "aliyun"
   }
