@@ -3,9 +3,10 @@
 import asyncio
 import os
 from typing import Optional, List
-from astrbot.api.star import Star, register
-from astrbot.api.event import AstrMessageEvent, filter, MessageChain
+
 from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent, filter, MessageChain
+from astrbot.api.star import Star, register
 
 from .lib import ServiceRegistry, StatusChecker, format_status_change_message, CommandHandlers
 
@@ -74,6 +75,8 @@ class ServiceWatcher(Star):
 
     async def _monitor_loop(self):
         """Background monitoring loop."""
+        import random
+        
         error_backoff = 5  # Initial backoff in seconds
 
         # Wait for system initialization
@@ -81,36 +84,36 @@ class ServiceWatcher(Star):
 
         while True:
             try:
-                # Prepare tasks for all services
-                tasks = []
-                for service_name, service in self.services.items():
-                    tasks.append(self.status_checker.check_service(
-                        service_name,
-                        service.api_url,
-                        service.type
-                    ))
+                # Concurrently check each service with staggered delays
+                async def _check_and_notify(service_name, service):
+                    """Helper to check a single service with delay and handle notifications."""
+                    try:
+                        # Add a small random delay to stagger requests over a 5-second window
+                        delay = random.uniform(0, 5)
+                        await asyncio.sleep(delay)
 
-                # Execute all checks concurrently
-                if tasks:
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                    # Process results
-                    for idx, result in enumerate(results):
-                        service_name = list(self.services.keys())[idx]
-
-                        if isinstance(result, Exception):
-                            logger.error(f"[{service_name}] 检查失败: {result}")
-                            continue
+                        # Check service status
+                        result = await self.status_checker.check_service(
+                            service_name,
+                            service.api_url,
+                            service.type
+                        )
 
                         # If status changed, notify subscribers
                         if result and result.get('changed'):
                             logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
                             await self._notify_status_change(service_name, result)
+                    except Exception as e:
+                        logger.error(f"[{service_name}] 检查失败: {e}")
+
+                tasks = [_check_and_notify(name, s) for name, s in self.services.items()]
+                if tasks:
+                    await asyncio.gather(*tasks)
 
                 # Reset backoff on successful run
                 error_backoff = 5
 
-                # Wait for next check
+                # Wait for next check interval
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
                 logger.error(f"监控循环出错: {e}")
