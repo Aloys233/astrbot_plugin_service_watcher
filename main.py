@@ -3,9 +3,10 @@
 import asyncio
 import os
 from typing import Optional, List
-from astrbot.api.star import Star, register
-from astrbot.api.event import AstrMessageEvent, filter, MessageChain
+
 from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent, filter, MessageChain
+from astrbot.api.star import Star, register
 
 from .lib import ServiceRegistry, StatusChecker, format_status_change_message, CommandHandlers
 

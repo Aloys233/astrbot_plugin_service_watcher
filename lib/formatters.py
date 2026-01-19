@@ -1,6 +1,7 @@
 """Message formatting utilities."""
 
 from typing import Dict, Optional, TypedDict, Any
+
 from .status_checker import StatusChecker
 
 
