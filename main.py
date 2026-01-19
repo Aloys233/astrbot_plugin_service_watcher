@@ -140,7 +140,6 @@ class ServiceWatcher(Star):
         if self.monitoring_task and not self.monitoring_task.done():
             self.monitoring_task.cancel()
 
-        if self.status_checker:
-            await self.status_checker.close()
+        await self.status_checker.close()
 
         logger.info("服务监控插件已停止")

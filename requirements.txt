@@ -1,2 +1,2 @@
-aiohttp>=6.0.0
+aiohttp>=3.0.0
 feedparser>=6.0.0

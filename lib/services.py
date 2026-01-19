@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Dict
 
+from astrbot.api import logger
+
 
 @dataclass
 class Service:
@@ -47,9 +49,7 @@ class ServiceRegistry:
                 )
             return services
         except Exception as e:
-            # We assume logger might not be available here directly or we just raise/return empty
-            # But better to return empty than crash if file is bad
-            print(f"Error loading services.json: {e}")
+            logger.error(f"Error loading services.json: {e}")
             return {}
 
     @classmethod

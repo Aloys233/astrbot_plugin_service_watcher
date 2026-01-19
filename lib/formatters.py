@@ -30,7 +30,7 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
 
     if service_type == "statuspage":
         # Add incident information if available
-        data = result['data']
+        data = result['data'] or {}
         incidents = data.get('incidents', [])
         if incidents:
             message += f"\n活动事件:\n"
@@ -76,7 +76,7 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
         response += f"  {emoji} {description}\n"
 
         if service_type == "statuspage":
-            data = result['data']
+            data = result['data'] or {}
             incidents = data.get('incidents', [])
             if incidents:
                 response += f"  活动事件:\n"
