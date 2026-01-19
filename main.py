@@ -83,11 +83,12 @@ class ServiceWatcher(Star):
 
         while True:
             try:
-                # Check each service with staggered delays
-                for service_name, service in self.services.items():
+                # Concurrently check each service with staggered delays
+                async def _check_and_notify(service_name, service):
+                    """Helper to check a single service with delay and handle notifications."""
                     try:
-                        # Add random delay between 1-5 seconds to stagger requests
-                        delay = random.uniform(1, 5)
+                        # Add a small random delay to stagger requests over a 5-second window
+                        delay = random.uniform(0, 5)
                         await asyncio.sleep(delay)
 
                         # Check service status
@@ -101,10 +102,12 @@ class ServiceWatcher(Star):
                         if result and result.get('changed'):
                             logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
                             await self._notify_status_change(service_name, result)
-
                     except Exception as e:
                         logger.error(f"[{service_name}] 检查失败: {e}")
-                        continue
+
+                tasks = [_check_and_notify(name, s) for name, s in self.services.items()]
+                if tasks:
+                    await asyncio.gather(*tasks)
 
                 # Reset backoff on successful run
                 error_backoff = 5
