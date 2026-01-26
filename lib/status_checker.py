@@ -7,24 +7,24 @@ from astrbot.api import logger
 
 
 class StatusAPIClient:
-    """HTTP client for fetching service status from various sources."""
+    """用于从各种来源获取服务状态的 HTTP 客户端。"""
 
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create client session."""
+        """获取或创建客户端会话。"""
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession(trust_env=True)
         return self.session
 
     async def close(self):
-        """Close client session."""
+        """关闭客户端会话。"""
         if self.session and not self.session.closed:
             await self.session.close()
 
     async def fetch_json(self, service_name: str, api_url: str) -> Optional[dict]:
-        """Fetch JSON data from API."""
+        """从 API 获取 JSON 数据。"""
         try:
             session = await self._get_session()
             async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
@@ -34,12 +34,12 @@ class StatusAPIClient:
                 return await response.json()
         except Exception as e:
             import traceback
-            logger.error(f"[{service_name}] 获取 JSON 状态失败: {repr(e)}")
+            logger.warning(f"[{service_name}] 获取 JSON 状态失败: {repr(e)}")
             logger.debug(traceback.format_exc())
             return None
 
     async def fetch_rss(self, service_name: str, rss_url: str) -> Optional[dict]:
-        """Fetch and parse RSS feed."""
+        """获取并解析 RSS 源。"""
         try:
             session = await self._get_session()
             async with session.get(rss_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
@@ -48,12 +48,12 @@ class StatusAPIClient:
                     return None
                 content = await response.read()
 
-                # Parse in executor to avoid blocking event loop
+                # 在执行器中解析以避免阻塞事件循环
                 loop = asyncio.get_running_loop()
                 return await loop.run_in_executor(None, feedparser.parse, content)
         except Exception as e:
             import traceback
-            logger.error(f"[{service_name}] 获取 RSS 状态失败: {repr(e)}")
+            logger.warning(f"[{service_name}] 获取 RSS 状态失败: {repr(e)}")
             logger.debug(traceback.format_exc())
             return None
 
@@ -61,9 +61,9 @@ class StatusAPIClient:
 from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter
 
 class StatusChecker:
-    """Check service status and detect changes for multiple types."""
+    """检查服务状态并检测多种类型的变更。"""
 
-    # Status emoji mapping
+    # 状态表情映射
     STATUS_EMOJI = {
         'none': '✅',
         'operational': '✅',
@@ -78,10 +78,10 @@ class StatusChecker:
     }
 
     def __init__(self, star):
-        """Initialize status checker with Star instance for KV storage.
+        """初始化状态检查器，使用 Star 实例进行 KV 存储。
         
         Args:
-            star: Star instance that provides get_kv_data/put_kv_data methods
+            star: 提供 get_kv_data/put_kv_data 方法的 Star 实例
         """
         self.star = star
         self.api_client = StatusAPIClient()
@@ -92,12 +92,12 @@ class StatusChecker:
         }
 
     async def close(self):
-        """Cleanup resources."""
+        """清理资源。"""
         await self.api_client.close()
 
     @staticmethod
     def get_emoji(indicator: str) -> str:
-        """Get emoji for status indicator."""
+        """获取状态指示器的表情符号。"""
         return StatusChecker.STATUS_EMOJI.get(indicator, '📊')
 
     async def check_service(
@@ -108,14 +108,14 @@ class StatusChecker:
             ignore_cache: bool = False,
             update_db: bool = True
     ) -> Optional[Dict[str, any]]:
-        """Check service status and detect changes.
+        """检查服务状态并检测变更。
         
         Args:
-            service_name: Name of the service
-            api_url: URL to fetch status from
-            service_type: Type of service (statuspage/rss/aliyun)
-            ignore_cache: If True, ignore last_id comparison for changed flag
-            update_db: If True, update KV storage with new status ID
+            service_name: 服务名称
+            api_url: 获取状态的 URL
+            service_type: 服务类型 (statuspage/rss/aliyun)
+            ignore_cache: 如果为 True，则忽略 last_id 比较以确定 changed 标志
+            update_db: 如果为 True，则使用新状态 ID 更新 KV 存储
         """
         adapter = self.adapters.get(service_type)
         if not adapter:
@@ -129,21 +129,21 @@ class StatusChecker:
 
         current_id = status_info['id']
 
-        # Check KV storage for last status (using Star's async KV methods)
+        # 检查 KV 存储中的上一次状态（使用 Star 的异步 KV 方法）
         kv_key = f"service_watcher_{service_name}_last_id"
         last_id = await self.star.get_kv_data(kv_key, None)
 
-        # Debug: log the state
+        # 调试：记录状态
         logger.debug(f"[{service_name}] current_id={current_id}, last_id={last_id}")
 
-        # First run - save status but don't trigger notification
+        # 首次运行 - 保存状态但不触发通知
         if last_id is None:
             if update_db:
                 await self.star.put_kv_data(kv_key, current_id)
                 logger.info(f"[{service_name}] 首次初始化状态: {current_id}")
             
             return {
-                'changed': False,  # First run is not a "change"
+                'changed': False,  # 首次运行不算作“变更”
                 'data': status_info.get('raw_status'),
                 'type': service_type,
                 'indicator': status_info['indicator'],
@@ -151,10 +151,10 @@ class StatusChecker:
                 'info': status_info
             }
 
-        # Compare with previous status
+        # 与上一次状态进行比较
         status_changed = ignore_cache or (current_id != last_id)
 
-        # Update storage only if changed and update_db is True
+        # 仅当状态变更且 update_db 为 True 时更新存储
         if status_changed and update_db:
             await self.star.put_kv_data(kv_key, current_id)
             logger.info(f"[{service_name}] 状态变化: {last_id} -> {current_id}")

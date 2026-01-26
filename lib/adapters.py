@@ -5,27 +5,27 @@ from astrbot.api import logger
 
 
 class BaseAdapter(ABC):
-    """Abstract base class for service status adapters."""
+    """服务状态适配器的抽象基类。"""
 
     @abstractmethod
     async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch and parse status from the service.
+        从服务获取并解析状态。
         
         Args:
-            client: StatusAPIClient instance
-            service_name: Name of the service
-            api_url: URL to fetch status from
+            client: StatusAPIClient 实例
+            service_name: 服务名称
+            api_url: 获取状态的 URL
             
         Returns:
-            Dict containing standardized status info or None if failed.
-            Standard keys: 'indicator', 'description', 'id', 'raw_status', 'entry' (optional)
+            包含标准化状态信息的字典，如果失败则返回 None。
+            标准键: 'indicator', 'description', 'id', 'raw_status', 'entry' (可选)
         """
         pass
 
 
 class StatusPageAdapter(BaseAdapter):
-    """Adapter for standard StatusPage.io JSON API."""
+    """标准 StatusPage.io JSON API 的适配器。"""
 
     STATUS_TRANSLATIONS = {
         'All Systems Operational': '所有系统运行正常',
@@ -48,7 +48,7 @@ class StatusPageAdapter(BaseAdapter):
         indicator = status.get('indicator', 'none')
         raw_description = status.get('description', 'Unknown')
 
-        # Translate description
+        # 翻译描述
         description = self.STATUS_TRANSLATIONS.get(raw_description, raw_description)
 
         return {
@@ -60,7 +60,7 @@ class StatusPageAdapter(BaseAdapter):
 
 
 class RSSAdapter(BaseAdapter):
-    """Adapter for RSS/Atom feeds."""
+    """RSS/Atom 源的适配器。"""
 
     async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
         data = await client.fetch_rss(service_name, api_url)
@@ -77,7 +77,7 @@ class RSSAdapter(BaseAdapter):
             }
 
         latest = entries[0]
-        # Use entry ID or published date as unique identifier
+        # 使用条目 ID 或发布日期作为唯一标识符
         entry_id = latest.get('id') or latest.get('published') or latest.get('link')
 
         return {
@@ -85,20 +85,20 @@ class RSSAdapter(BaseAdapter):
             'description': latest.get('title', '新动态'),
             'id': entry_id,
             'entry': latest,
-            'raw_status': None  # RSS data is too large/complex to store as raw status usually
+            'raw_status': None  # RSS 数据通常太大/太复杂而无法作为原始状态存储
         }
 
 
 class AliyunAdapter(BaseAdapter):
-    """Adapter for Alibaba Cloud status API."""
+    """阿里云状态 API 的适配器。"""
 
     async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
         data = await client.fetch_json(service_name, api_url)
         if not data:
             return None
 
-        # Alibaba Cloud returns {"data": [], "total": 0, "success": true, ...}
-        # data is a list of events in progress
+        # 阿里云返回 {"data": [], "total": 0, "success": true, ...}
+        # data 是正在进行的事件列表
         events = data.get('data', [])
 
         if not events:
@@ -109,12 +109,12 @@ class AliyunAdapter(BaseAdapter):
                 'raw_status': data
             }
 
-        # If there are events, take the first one or valid summary
-        # We'll use the list of event IDs as the unique ID for the status
+        # 如果有事件，取第一个或有效的摘要
+        # 我们将使用事件 ID 列表作为状态的唯一 ID
         event_ids = ",".join(sorted(str(e.get('id', 'unknown')) for e in events))
 
         return {
-            'indicator': 'minor',  # Assume minor if there are events
+            'indicator': 'minor',  # 如果有事件，假设为轻微问题
             'description': f"{len(events)} 个活跃事件",
             'id': f"events_{event_ids}",
             'raw_status': data

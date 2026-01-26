@@ -1,4 +1,4 @@
-"""Service definitions and registry for service status monitoring."""
+"""用于服务状态监控的服务定义和注册表。"""
 
 from dataclasses import dataclass
 from typing import Dict
@@ -6,26 +6,26 @@ from typing import Dict
 
 @dataclass
 class Service:
-    """Represents a monitored service."""
+    """表示一个受监控的服务。"""
     name: str
     api_url: str
-    type: str = "statuspage"  # statuspage or rss
+    type: str = "statuspage"  # statuspage 或 rss
     enabled: bool = True
 
 
 
 class ServiceRegistry:
-    """Registry for managing available services."""
+    """用于管理可用服务的注册表。"""
 
     @classmethod
     def load_from_json(cls, file_path: str) -> Dict[str, Service]:
-        """Load service definitions from a JSON file.
+        """从 JSON 文件加载服务定义。
         
         Args:
-            file_path: Path to the services.json file
+            file_path: services.json 文件的路径
             
         Returns:
-            Dictionary of all available services
+            所有可用服务的字典
         """
         import json
         import os
@@ -47,35 +47,35 @@ class ServiceRegistry:
                 )
             return services
         except Exception as e:
-            # We assume logger might not be available here directly or we just raise/return empty
-            # But better to return empty than crash if file is bad
+            # 我们假设此处可能无法直接使用 logger，或者直接抛出/返回空
+            # 但返回空总比文件损坏导致崩溃要好
             print(f"Error loading services.json: {e}")
             return {}
 
     @classmethod
     def load_from_config(cls, config: dict, services_json_path: str) -> Dict[str, Service]:
-        """Load enabled services based on configuration toggles.
+        """基于配置开关加载已启用的服务。
         
         Args:
-            config: Configuration dictionary
-            services_json_path: Path to the services.json file
+            config: 配置字典
+            services_json_path: services.json 文件的路径
             
         Returns:
-            Dictionary mapping service name to Service instance
+            映射服务名称到 Service 实例的字典
         """
         available_services = cls.load_from_json(services_json_path)
         services = {}
 
-        # Flatten the configuration for easier lookup
-        # We look for 'enable_<service_key>' in root or anywhere inside service_groups
+        # 扁平化配置以便于查找
+        # 我们在根目录或 service_groups 内部的任何位置查找 'enable_<service_key>'
         enabled_keys = set()
 
-        # Check root level keys
+        # 检查根级别键
         for k, v in config.items():
             if k.startswith("enable_") and v is True:
                 enabled_keys.add(k)
 
-        # Check nested service_groups
+        # 检查嵌套的 service_groups
         service_groups = config.get("service_groups", {})
         if isinstance(service_groups, dict):
             for group_data in service_groups.values():

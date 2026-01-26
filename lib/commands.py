@@ -1,4 +1,4 @@
-"""Command handlers for service status monitoring."""
+"""服务状态监控的命令处理器。"""
 
 import asyncio
 from typing import AsyncGenerator
@@ -10,29 +10,28 @@ from .status_checker import StatusChecker
 
 
 class CommandHandlers:
-    """Handlers for service status monitoring commands."""
+    """服务状态监控命令的处理器。"""
 
     def __init__(self, status_checker: StatusChecker, services: dict):
-        """Initialize command handlers.
+        """初始化命令处理器。
         
         Args:
-            status_checker: StatusChecker instance
-            services: Dictionary of enabled services
+            status_checker: StatusChecker 实例
+            services: 已启用服务的字典
         """
         self.status_checker = status_checker
         self.services = services
 
     async def handle_servicestatus(self, event: AstrMessageEvent) -> AsyncGenerator:
-        """Handle /servicestatus command - show all service statuses."""
+        """处理 /servicestatus 命令 - 显示所有服务状态。"""
         if not self.services:
             yield event.plain_result("未配置任何服务订阅")
             return
 
-        # Fetch status for all services
-        # Fetch status for all services concurrently
+        # 并发获取所有服务的状态
         services_status = {}
 
-        # Prepare tasks
+        # 准备任务
         service_names = []
         tasks = []
         for service_name, service in self.services.items():
@@ -42,21 +41,21 @@ class CommandHandlers:
                 service.api_url,
                 service.type,
                 ignore_cache=False,
-                update_db=False  # Don't update DB on manual status check
+                update_db=False  # 手动检查状态时不更新数据库
             ))
 
-        # Execute all checks in parallel
+        # 并行执行所有检查
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect results
+        # 收集结果
         for idx, result in enumerate(results):
             name = service_names[idx]
             if isinstance(result, Exception):
-                # Should be handled inside check_service, but just in case
+                # 应该在 check_service 内部处理，但以防万一
                 continue
             services_status[name] = result
 
-        # Format and return
+        # 格式化并返回
         response = format_status_list(services_status)
         yield event.plain_result(response)
 
@@ -65,8 +64,8 @@ class CommandHandlers:
             event: AstrMessageEvent,
             service_name: str
     ) -> AsyncGenerator:
-        """Handle /servicetest command - test service monitoring."""
-        # Find service in loaded services
+        """处理 /servicetest 命令 - 测试服务监控。"""
+        # 在已加载的服务中查找服务
         service = self.services.get(service_name)
         if not service:
             available = ', '.join(self.services.keys())
@@ -77,14 +76,14 @@ class CommandHandlers:
 
         yield event.plain_result(f"正在测试获取 {service_name} ({service.api_url}) ...")
 
-        # Check status with cache ignored
+        # 忽略缓存检查状态
         try:
             result = await self.status_checker.check_service(
                 service_name,
                 service.api_url,
                 service.type,
                 ignore_cache=True,
-                update_db=False  # Test command should not affect monitoring state
+                update_db=False  # 测试命令不应影响监控状态
             )
 
             response = format_test_result(service_name, result)

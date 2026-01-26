@@ -1,4 +1,4 @@
-"""Service Status Watcher Plugin - Main Entry Point."""
+"""服务状态监控插件 - 主入口点。"""
 
 import asyncio
 import os
@@ -23,46 +23,46 @@ class ServiceWatcher(Star):
         self.notify_targets: List[str] = []  # 订阅通知的会话列表
         self.monitoring_task: Optional[asyncio.Task] = None
 
-        # Initialize modules
-        self.status_checker = StatusChecker(self)  # Pass self (Star instance) for KV storage
-        self.command_handlers = None  # Will be initialized after config load
+        # 初始化模块
+        self.status_checker = StatusChecker(self)  # 传入 self (Star 实例) 用于 KV 存储
+        self.command_handlers = None  # 将在加载配置后初始化
     
     async def initialize(self):
-        """Initialize plugin and start monitoring."""
-        # Load configuration
+        """初始化插件并开始监控。"""
+        # 加载配置
         self._load_config()
 
-        # Initialize command handlers with loaded services
+        # 使用已加载的服务初始化命令处理器
         self.command_handlers = CommandHandlers(self.status_checker, self.services)
 
-        # Start background monitoring
+        # 开始后台监控
         self.monitoring_task = asyncio.create_task(self._monitor_loop())
         logger.info(f"服务监控插件已启动，监控间隔: {self.check_interval}秒，通知目标: {len(self.notify_targets)}个")
 
     def _load_config(self):
-        """Load configuration from plugin config."""
-        # Debug: print actual config received
-        # Debug: check_interval and notify_targets count, avoid logging sensitive check urls
+        """从插件配置加载配置。"""
+        # 调试：打印接收到的实际配置
+        # 调试：check_interval 和 notify_targets 数量，避免记录敏感的检查 URL
         logger.debug(
             f"加载配置: check_interval={self.config.get('check_interval')}, targets={len(self.config.get('notify_targets', []))}")
 
-        # Load enabled services
+        # 加载已启用的服务
         services_path = os.path.join(os.path.dirname(__file__), "services.json")
         self.services = ServiceRegistry.load_from_config(self.config, services_path)
 
-        # Load other settings
+        # 加载其他设置
         self.check_interval = self.config.get("check_interval", 60)
         self.notify_targets = self.config.get("notify_targets", [])
 
         logger.info(f"已加载 {len(self.services)} 个服务订阅")
 
     async def _notify_status_change(self, service_name: str, result: dict):
-        """Notify all subscribed targets about status change."""
+        """通知所有订阅的目标关于状态变更。"""
         if not self.notify_targets:
             logger.debug(f"[{service_name}] 状态变化但无通知目标")
             return
 
-        # Format notification message
+        # 格式化通知消息
         message_text = format_status_change_message(service_name, result)
 
         for target in self.notify_targets:
@@ -74,32 +74,32 @@ class ServiceWatcher(Star):
                 logger.error(f"[{service_name}] 发送通知到 {target} 失败: {e}")
 
     async def _monitor_loop(self):
-        """Background monitoring loop."""
+        """后台监控循环。"""
         import random
-        
-        error_backoff = 5  # Initial backoff in seconds
 
-        # Wait for system initialization
+        error_backoff = 5  # 初始退避时间（秒）
+
+        # 等待系统初始化
         await asyncio.sleep(5)
 
         while True:
             try:
-                # Concurrently check each service with staggered delays
+                # 并发检查每个服务，错开延迟
                 async def _check_and_notify(service_name, service):
-                    """Helper to check a single service with delay and handle notifications."""
+                    """延迟检查单个服务并处理通知的辅助函数。"""
                     try:
-                        # Add a small random delay to stagger requests over a 5-second window
+                        # 添加微小的随机延迟，使请求在 5 秒窗口内错开
                         delay = random.uniform(0, 5)
                         await asyncio.sleep(delay)
 
-                        # Check service status
+                        # 检查服务状态
                         result = await self.status_checker.check_service(
                             service_name,
                             service.api_url,
                             service.type
                         )
 
-                        # If status changed, notify subscribers
+                        # 如果状态及变更，通知订阅者
                         if result and result.get('changed'):
                             logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
                             await self._notify_status_change(service_name, result)
@@ -110,18 +110,18 @@ class ServiceWatcher(Star):
                 if tasks:
                     await asyncio.gather(*tasks)
 
-                # Reset backoff on successful run
+                # 成功运行后重置退避
                 error_backoff = 5
 
-                # Wait for next check interval
+                # 等待下一个检查间隔
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
                 logger.error(f"监控循环出错: {e}")
                 await asyncio.sleep(error_backoff)
-                # Exponential backoff with max 60s
+                # 指数退避，最大 60 秒
                 error_backoff = min(error_backoff * 2, 60)
 
-    # Command handlers
+    # 命令处理器
 
     @filter.command("servicestatus")
     async def cmd_status(self, event: AstrMessageEvent):
@@ -136,7 +136,7 @@ class ServiceWatcher(Star):
             yield result
     
     async def terminate(self):
-        """Clean up resources."""
+        """清理资源。"""
         if self.monitoring_task and not self.monitoring_task.done():
             self.monitoring_task.cancel()
 

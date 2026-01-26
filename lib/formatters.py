@@ -1,4 +1,4 @@
-"""Message formatting utilities."""
+"""消息格式化工具。"""
 
 from typing import Dict, Optional, TypedDict, Any
 
@@ -15,13 +15,13 @@ class ServiceStatusResult(TypedDict):
 
 
 def format_status_change_message(service_name: str, result: ServiceStatusResult) -> str:
-    """Format a status change notification message."""
+    """格式化状态变更通知消息。"""
     indicator = result['indicator']
     description = result['description']
     service_type = result['type']
     info = result['info']
 
-    # Get status emoji
+    # 获取状态表情符号
     emoji = StatusChecker.get_emoji(indicator)
 
     header = "状态变化" if service_type == "statuspage" else "新动态"
@@ -34,12 +34,12 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
         incidents = data.get('incidents', [])
         if incidents:
             message += f"\n活动事件:\n"
-            for incident in incidents[:3]:  # Max 3 incidents
+            for incident in incidents[:3]:  # 最多显示 3 个事件
                 name = incident.get('name', '未知事件')
                 status = incident.get('status', 'unknown')
                 message += f"  - {name} ({status})\n"
 
-        # Add status page URL
+        # 添加状态页 URL
         page_url = data.get('page', {}).get('url', '')
         if page_url:
             message += f"\n监控页: {page_url}"
@@ -53,7 +53,7 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
 
 
 def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]) -> str:
-    """Format status list for /servicestatus command."""
+    """为 /servicestatus 命令格式化状态列表。"""
     if not services_status:
         return "未配置任何服务订阅"
 
@@ -69,7 +69,7 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
         description = result['description']
         service_type = result['type']
 
-        # Get status emoji
+        # 获取状态表情符号
         emoji = StatusChecker.get_emoji(indicator)
 
         response += f"【{service_name}】\n"
@@ -80,7 +80,7 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
             incidents = data.get('incidents', [])
             if incidents:
                 response += f"  活动事件:\n"
-                for incident in incidents[:2]:  # Max 2 incidents in list view
+                for incident in incidents[:2]:  # 列表视图中最多显示 2 个事件
                     name = incident.get('name', '未知')
                     status = incident.get('status', 'unknown')
                     response += f"    • {name} ({status})\n"
@@ -91,9 +91,9 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
 
 
 def format_test_result(service_name: str, result: Optional[ServiceStatusResult]) -> str:
-    """Format test command result."""
+    """格式化测试命令结果。"""
     if result is None:
         return f"未能获取到 {service_name} 的状态信息"
 
-    # Show full status change style message for testing
+    # 测试时显示完整的状态变更样式消息
     return format_status_change_message(service_name, result)
