@@ -52,6 +52,9 @@ class CommandHandlers:
             name = service_names[idx]
             if isinstance(result, Exception):
                 # 应该在 check_service 内部处理，但以防万一
+                services_status[name] = {
+                    "error": str(result) or "未知错误"
+                }
                 continue
             services_status[name] = result
 

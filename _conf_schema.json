@@ -152,6 +152,31 @@
             "type": "bool",
             "default": false,
             "description": "Epic Games"
+          },
+          "enable_steam_store": {
+            "type": "bool",
+            "default": false,
+            "description": "Steam Store"
+          },
+          "enable_steam_community": {
+            "type": "bool",
+            "default": false,
+            "description": "Steam Community"
+          },
+          "enable_steam_webapi": {
+            "type": "bool",
+            "default": false,
+            "description": "Steam Web API"
+          },
+          "enable_steam_cs2": {
+            "type": "bool",
+            "default": false,
+            "description": "Steam CS2"
+          },
+          "enable_steam_dota2": {
+            "type": "bool",
+            "default": false,
+            "description": "Steam Dota 2"
           }
         }
       }

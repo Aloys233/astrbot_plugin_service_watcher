@@ -69,11 +69,6 @@
     "api_url": "https://status.figma.com/api/v2/summary.json",
     "type": "statuspage"
   },
-  "dropbox": {
-    "name": "Dropbox",
-    "api_url": "https://status.dropbox.com/api/v2/summary.json",
-    "type": "statuspage"
-  },
   "zoom": {
     "name": "Zoom",
     "api_url": "https://status.zoom.us/api/v2/summary.json",
@@ -103,5 +98,30 @@
     "name": "阿里云",
     "api_url": "https://status.aliyun.com/api/status/listEventInProgress",
     "type": "aliyun"
+  },
+  "steam_store": {
+    "name": "Steam Store",
+    "api_url": "https://steamstat.us/not_an_api.json?service=store",
+    "type": "steamstat"
+  },
+  "steam_community": {
+    "name": "Steam Community",
+    "api_url": "https://steamstat.us/not_an_api.json?service=community",
+    "type": "steamstat"
+  },
+  "steam_webapi": {
+    "name": "Steam Web API",
+    "api_url": "https://steamstat.us/not_an_api.json?service=webapi",
+    "type": "steamstat"
+  },
+  "steam_cs2": {
+    "name": "Steam CS2",
+    "api_url": "https://steamstat.us/not_an_api.json?service=cs2",
+    "type": "steamstat"
+  },
+  "steam_dota2": {
+    "name": "Steam Dota 2",
+    "api_url": "https://steamstat.us/not_an_api.json?service=dota2",
+    "type": "steamstat"
   }
 }

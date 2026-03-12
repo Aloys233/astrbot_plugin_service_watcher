@@ -58,7 +58,7 @@ class StatusAPIClient:
             return None
 
 
-from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter
+from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter, SteamStatAdapter
 
 class StatusChecker:
     """检查服务状态并检测多种类型的变更。"""
@@ -88,7 +88,8 @@ class StatusChecker:
         self.adapters = {
             'statuspage': StatusPageAdapter(),
             'rss': RSSAdapter(),
-            'aliyun': AliyunAdapter()
+            'aliyun': AliyunAdapter(),
+            'steamstat': SteamStatAdapter()
         }
 
     async def close(self):
