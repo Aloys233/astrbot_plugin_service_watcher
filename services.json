@@ -69,11 +69,6 @@
     "api_url": "https://status.figma.com/api/v2/summary.json",
     "type": "statuspage"
   },
-  "dropbox": {
-    "name": "Dropbox",
-    "api_url": "https://status.dropbox.com/api/v2/summary.json",
-    "type": "statuspage"
-  },
   "zoom": {
     "name": "Zoom",
     "api_url": "https://status.zoom.us/api/v2/summary.json",
