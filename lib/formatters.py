@@ -21,7 +21,8 @@ def _service_type_label(service_type: str) -> str:
     labels = {
         "statuspage": "StatusPage",
         "rss": "RSS",
-        "aliyun": "Aliyun"
+        "aliyun": "Aliyun",
+        "steamstat": "Steam"
     }
     return labels.get(service_type, service_type)
 
@@ -64,6 +65,10 @@ def _format_statuspage_details(info: Dict[str, Any], limit: int = 3) -> List[str
     details = info.get("details", {}) if isinstance(info, dict) else {}
     incidents = details.get("incidents", []) if isinstance(details.get("incidents"), list) else []
     lines: List[str] = []
+
+    page_url = _clean_text(details.get("page_url"), "")
+    if page_url:
+        lines.append(f"监控页: {page_url}")
 
     if not incidents:
         lines.append("事件: 无活跃事件")

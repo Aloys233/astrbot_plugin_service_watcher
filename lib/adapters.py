@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+import re
 from typing import Dict, Optional, Any, List
+from urllib.parse import urlparse, parse_qs
 
 from astrbot.api import logger
 
@@ -131,6 +133,108 @@ class RSSAdapter(BaseAdapter):
                 'author': latest.get('author'),
                 'link': latest.get('link'),
                 'summary': latest.get('summary') or latest.get('description')
+            }
+        }
+
+
+class SteamStatAdapter(BaseAdapter):
+    """SteamStat.us JSON 的适配器。"""
+
+    SERVICE_ALIASES = {
+        "web_api": "webapi",
+        "api": "webapi",
+        "csgo": "cs2",
+        "counterstrike2": "cs2",
+        "counterstrike": "cs2",
+        "dota": "dota2"
+    }
+
+    LEVEL_MAP = {
+        "normal": "none",
+        "ok": "none",
+        "low load": "none",
+        "medium load": "minor",
+        "high load": "critical",
+        "very slow": "critical"
+    }
+
+    @staticmethod
+    def _normalize_key(value: str) -> str:
+        text = re.sub(r"[^a-z0-9]+", "", value.lower())
+        return text or value.lower()
+
+    @classmethod
+    def _canonical_service(cls, value: str) -> str:
+        normalized = cls._normalize_key(value)
+        return cls.SERVICE_ALIASES.get(normalized, normalized)
+
+    @classmethod
+    def _indicator_for_level(cls, level: str, text: str = "") -> str:
+        if level is None:
+            level = ""
+        normalized = str(level).strip().lower()
+        if normalized.isdigit():
+            return "none" if int(normalized) == 0 else "minor"
+        for key, indicator in cls.LEVEL_MAP.items():
+            if key in normalized:
+                return indicator
+        normalized_text = str(text).strip().lower()
+        for key, indicator in cls.LEVEL_MAP.items():
+            if key in normalized_text:
+                return indicator
+        return "minor"
+
+    @staticmethod
+    def _service_from_query(api_url: str) -> str:
+        query = parse_qs(urlparse(api_url).query)
+        service = query.get("service", [])
+        if service:
+            return str(service[0])
+        return ""
+
+    async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
+        data = await client.fetch_json(service_name, api_url)
+        if not data:
+            return None
+
+        service_hint = self._service_from_query(api_url)
+        service_key = self._canonical_service(service_hint) if service_hint else ""
+
+        services = data.get("services", [])
+        if not isinstance(services, list):
+            services = []
+
+        matched = None
+        for entry in services:
+            if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                continue
+            key = self._canonical_service(str(entry[0]))
+            if service_key and key != service_key:
+                continue
+            matched = entry
+            service_key = key
+            break
+
+        if not matched:
+            logger.warning(f"[{service_name}] SteamStat 服务未找到: {service_hint or service_key}")
+            return None
+
+        level = str(matched[1])
+        text = str(matched[2]) if len(matched) > 2 else level
+        indicator = self._indicator_for_level(level, text)
+        display_name = service_key or service_name
+        description = f"{display_name}: {text}"
+        status_id = f"{service_key}|{level}|{text}"
+
+        return {
+            "indicator": indicator,
+            "description": description,
+            "id": status_id,
+            "raw_status": data,
+            "details": {
+                "service": service_key,
+                "level": level,
+                "text": text
             }
         }
 
