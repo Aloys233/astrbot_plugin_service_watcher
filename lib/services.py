@@ -9,9 +9,10 @@ from astrbot.api import logger
 @dataclass
 class Service:
     """表示一个受监控的服务。"""
+    key: str  # services.json 中的标识符（如 github）
     name: str
     api_url: str
-    type: str = "statuspage"  # statuspage 或 rss
+    type: str = "statuspage"  # statuspage / rss / aliyun / steamstat / probe
     enabled: bool = True
 
 
@@ -22,12 +23,12 @@ class ServiceRegistry:
     @classmethod
     def load_from_json(cls, file_path: str) -> Dict[str, Service]:
         """从 JSON 文件加载服务定义。
-        
+
         Args:
             file_path: services.json 文件的路径
-            
+
         Returns:
-            所有可用服务的字典
+            所有可用服务的字典（以 services.json 中的 key 为键）
         """
         import json
         import os
@@ -42,6 +43,7 @@ class ServiceRegistry:
             services = {}
             for key, value in data.items():
                 services[key] = Service(
+                    key=key,
                     name=value['name'],
                     api_url=value['api_url'],
                     type=value.get('type', 'statuspage'),
@@ -67,6 +69,12 @@ class ServiceRegistry:
         """
         available_services = cls.load_from_json(services_json_path)
         services = {}
+
+        # 过滤掉 services.json 中标记为禁用的服务
+        available_services = {
+            key: service for key, service in available_services.items()
+            if service.enabled
+        }
 
         # 扁平化配置以便于查找
         # 我们在根目录或 service_groups 内部的任何位置查找 'enable_<service_key>'

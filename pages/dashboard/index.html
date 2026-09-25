@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>服务状态监控</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <div class="page-header-text">
+          <h1 data-i18n="title">服务状态监控</h1>
+          <p class="subtitle" data-i18n="subtitle">实时掌握国内外互联网服务的运行状态</p>
+        </div>
+        <div class="header-actions">
+          <span class="last-check" id="last-check"></span>
+          <label class="switch-label">
+            <input type="checkbox" id="auto-refresh" checked />
+            <span data-i18n="autoRefresh">自动刷新</span>
+          </label>
+          <button class="btn primary" id="btn-refresh">
+            <span class="btn-icon" id="refresh-icon">⟳</span>
+            <span data-i18n="refresh">刷新</span>
+          </button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="overview" data-i18n="tabOverview">概览</button>
+        <button class="tab" data-tab="manage" data-i18n="tabManage">服务管理</button>
+        <button class="tab" data-tab="settings" data-i18n="tabSettings">设置</button>
+      </nav>
+
+      <section class="panel active" id="panel-overview">
+        <div class="summary" id="summary"></div>
+        <p class="hint grid-hint" data-i18n="clickHint">点击卡片可查看故障与维护的详细信息</p>
+        <div class="status-grid" id="status-grid">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-manage">
+        <div class="panel-bar">
+          <p class="hint" data-i18n="manageHint">勾选需要监控的服务，保存后立即生效。</p>
+          <button class="btn primary" id="btn-save-services" data-i18n="save">保存</button>
+        </div>
+        <div id="manage-groups" class="manage-groups"></div>
+      </section>
+
+      <section class="panel" id="panel-settings">
+        <div class="settings-form">
+          <div class="field">
+            <label for="input-interval" data-i18n="interval">检查间隔（秒）</label>
+            <input type="number" id="input-interval" min="10" max="86400" />
+            <p class="hint" data-i18n="intervalHint">最小 10 秒；设置过短会频繁请求上游 API。</p>
+          </div>
+          <div class="field">
+            <label for="input-targets" data-i18n="targets">通知目标列表</label>
+            <textarea id="input-targets" rows="5" spellcheck="false"
+              data-i18n-placeholder="targetsPlaceholder"
+              placeholder="aiocqhttp:GroupMessage:123456"></textarea>
+            <p class="hint" data-i18n="targetsHint">每行一个 unified_msg_origin，可在目标会话中发送 /sid 指令获取。</p>
+          </div>
+          <div class="settings-actions">
+            <button class="btn primary" id="btn-save-settings" data-i18n="save">保存</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="detail-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-head">
+          <span class="modal-title" id="detail-title"></span>
+          <span class="badge" id="detail-type"></span>
+          <button class="modal-close" id="detail-close" aria-label="close">&times;</button>
+        </div>
+        <div class="modal-body" id="detail-body"></div>
+        <div class="modal-foot" data-i18n="tzHint">时间均为浏览器本地时区</div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

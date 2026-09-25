@@ -1,7 +1,7 @@
 """服务状态监控的命令处理器。"""
 
 import asyncio
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from astrbot.api.event import AstrMessageEvent
 
@@ -14,13 +14,25 @@ class CommandHandlers:
 
     def __init__(self, status_checker: StatusChecker, services: dict):
         """初始化命令处理器。
-        
+
         Args:
             status_checker: StatusChecker 实例
             services: 已启用服务的字典
         """
         self.status_checker = status_checker
         self.services = services
+
+    def _find_service(self, service_name: str):
+        """按显示名或 services.json 标识符查找服务（大小写不敏感）。"""
+        service = self.services.get(service_name)
+        if service:
+            return service
+
+        needle = service_name.strip().lower()
+        for service in self.services.values():
+            if service.key.lower() == needle or service.name.lower() == needle:
+                return service
+        return None
 
     async def handle_servicestatus(self, event: AstrMessageEvent) -> AsyncGenerator:
         """处理 /servicestatus 命令 - 显示所有服务状态。"""
@@ -65,11 +77,19 @@ class CommandHandlers:
     async def handle_servicetest(
             self,
             event: AstrMessageEvent,
-            service_name: str
+            service_name: Optional[str] = None
     ) -> AsyncGenerator:
         """处理 /servicetest 命令 - 测试服务监控。"""
-        # 在已加载的服务中查找服务
-        service = self.services.get(service_name)
+        if not service_name:
+            available = ', '.join(self.services.keys())
+            yield event.plain_result(
+                "用法: /servicetest <服务名>\n"
+                f"已配置服务: {available or '无'}"
+            )
+            return
+
+        # 按显示名或标识符查找服务
+        service = self._find_service(service_name)
         if not service:
             available = ', '.join(self.services.keys())
             yield event.plain_result(
@@ -77,19 +97,19 @@ class CommandHandlers:
             )
             return
 
-        yield event.plain_result(f"正在测试获取 {service_name} ({service.api_url}) ...")
+        yield event.plain_result(f"正在测试获取 {service.name} ({service.api_url}) ...")
 
         # 忽略缓存检查状态
         try:
             result = await self.status_checker.check_service(
-                service_name,
+                service.name,
                 service.api_url,
                 service.type,
                 ignore_cache=True,
                 update_db=False  # 测试命令不应影响监控状态
             )
 
-            response = format_test_result(service_name, result)
+            response = format_test_result(service.name, result)
             yield event.plain_result(response)
 
         except Exception as e:

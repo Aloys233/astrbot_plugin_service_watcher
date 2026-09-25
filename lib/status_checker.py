@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 import aiohttp
 import feedparser
@@ -9,13 +9,18 @@ from astrbot.api import logger
 class StatusAPIClient:
     """用于从各种来源获取服务状态的 HTTP 客户端。"""
 
+    USER_AGENT = "AstrBot-ServiceWatcher/0.3 (+https://github.com/Aloys233/astrbot_plugin_service_watcher)"
+
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """获取或创建客户端会话。"""
         if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession(trust_env=True)
+            self.session = aiohttp.ClientSession(
+                trust_env=True,
+                headers={"User-Agent": self.USER_AGENT}
+            )
         return self.session
 
     async def close(self):
@@ -57,8 +62,43 @@ class StatusAPIClient:
             logger.debug(traceback.format_exc())
             return None
 
+    async def fetch_probe(self, service_name: str, probe_url: str) -> Dict[str, Any]:
+        """探测 URL 可达性。
 
-from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter, SteamStatAdapter
+        Returns:
+            {'reachable': bool, 'status_code': int|None, 'latency_ms': int|None, 'error': str|None}
+            网络层失败不会抛异常，而是返回 reachable=False 的结果。
+        """
+        result: Dict[str, Any] = {
+            'reachable': False,
+            'status_code': None,
+            'latency_ms': None,
+            'error': None
+        }
+        try:
+            session = await self._get_session()
+            loop = asyncio.get_running_loop()
+            start = loop.time()
+            async with session.get(probe_url, timeout=aiohttp.ClientTimeout(total=10),
+                                   allow_redirects=True) as response:
+                # 读取响应体以获得完整的响应周期耗时
+                await response.read()
+                result['reachable'] = True
+                result['status_code'] = response.status
+                result['latency_ms'] = int((loop.time() - start) * 1000)
+        except Exception as e:
+            # 将常见网络错误归纳为简洁的中文描述
+            if isinstance(e, asyncio.TimeoutError) or 'Timeout' in type(e).__name__:
+                result['error'] = '请求超时'
+            elif 'Connector' in type(e).__name__ or isinstance(e, OSError):
+                result['error'] = '连接失败/DNS 解析失败'
+            else:
+                result['error'] = repr(e)[:60]
+            logger.debug(f"[{service_name}] 探测失败: {repr(e)}")
+        return result
+
+
+from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter, SteamStatAdapter, ProbeAdapter
 
 class StatusChecker:
     """检查服务状态并检测多种类型的变更。"""
@@ -89,7 +129,8 @@ class StatusChecker:
             'statuspage': StatusPageAdapter(),
             'rss': RSSAdapter(),
             'aliyun': AliyunAdapter(),
-            'steamstat': SteamStatAdapter()
+            'steamstat': SteamStatAdapter(),
+            'probe': ProbeAdapter()
         }
 
     async def close(self):
@@ -108,13 +149,13 @@ class StatusChecker:
             service_type: str = "statuspage",
             ignore_cache: bool = False,
             update_db: bool = True
-    ) -> Optional[Dict[str, any]]:
+    ) -> Optional[Dict[str, Any]]:
         """检查服务状态并检测变更。
-        
+
         Args:
             service_name: 服务名称
             api_url: 获取状态的 URL
-            service_type: 服务类型 (statuspage/rss/aliyun)
+            service_type: 服务类型 (statuspage/rss/aliyun/steamstat/probe)
             ignore_cache: 如果为 True，则忽略 last_id 比较以确定 changed 标志
             update_db: 如果为 True，则使用新状态 ID 更新 KV 存储
         """
@@ -131,7 +172,8 @@ class StatusChecker:
         current_id = status_info['id']
 
         # 检查 KV 存储中的上一次状态（使用 Star 的异步 KV 方法）
-        kv_key = f"service_watcher_{service_name}_last_id"
+        # key 中包含服务类型：类型或数据源调整后旧缓存自然失效，避免升级后误报变更
+        kv_key = f"service_watcher_{service_name}_{service_type}_last_id"
         last_id = await self.star.get_kv_data(kv_key, None)
 
         # 调试：记录状态

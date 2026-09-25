@@ -79,9 +79,24 @@
     "api_url": "https://trello.status.atlassian.com/api/v2/summary.json",
     "type": "statuspage"
   },
+  "atlassian": {
+    "name": "Atlassian",
+    "api_url": "https://status.atlassian.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "twilio": {
+    "name": "Twilio",
+    "api_url": "https://status.twilio.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
   "canva": {
     "name": "Canva",
     "api_url": "https://www.canvastatus.com/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "dropbox": {
+    "name": "Dropbox",
+    "api_url": "https://status.dropbox.com/api/v2/summary.json",
     "type": "statuspage"
   },
   "epicgames": {
@@ -99,29 +114,54 @@
     "api_url": "https://status.aliyun.com/api/status/listEventInProgress",
     "type": "aliyun"
   },
+  "moonshot": {
+    "name": "Moonshot AI (Kimi)",
+    "api_url": "https://status.moonshot.cn/api/v2/summary.json",
+    "type": "statuspage"
+  },
+  "deepseek_api": {
+    "name": "DeepSeek API",
+    "api_url": "https://api.deepseek.com/",
+    "type": "probe"
+  },
+  "zhipu": {
+    "name": "智谱AI开放平台",
+    "api_url": "https://open.bigmodel.cn/",
+    "type": "probe"
+  },
+  "siliconflow": {
+    "name": "硅基流动",
+    "api_url": "https://api.siliconflow.cn/",
+    "type": "probe"
+  },
+  "bilibili": {
+    "name": "哔哩哔哩",
+    "api_url": "https://www.bilibili.com/",
+    "type": "probe"
+  },
+  "qq_open_platform": {
+    "name": "QQ机器人开放平台",
+    "api_url": "https://q.qq.com/",
+    "type": "probe"
+  },
+  "wechat_mp": {
+    "name": "微信公众平台",
+    "api_url": "https://mp.weixin.qq.com/",
+    "type": "probe"
+  },
   "steam_store": {
     "name": "Steam Store",
-    "api_url": "https://steamstat.us/not_an_api.json?service=store",
-    "type": "steamstat"
+    "api_url": "https://store.steampowered.com/",
+    "type": "probe"
   },
   "steam_community": {
     "name": "Steam Community",
-    "api_url": "https://steamstat.us/not_an_api.json?service=community",
-    "type": "steamstat"
+    "api_url": "https://steamcommunity.com/",
+    "type": "probe"
   },
   "steam_webapi": {
     "name": "Steam Web API",
-    "api_url": "https://steamstat.us/not_an_api.json?service=webapi",
-    "type": "steamstat"
-  },
-  "steam_cs2": {
-    "name": "Steam CS2",
-    "api_url": "https://steamstat.us/not_an_api.json?service=cs2",
-    "type": "steamstat"
-  },
-  "steam_dota2": {
-    "name": "Steam Dota 2",
-    "api_url": "https://steamstat.us/not_an_api.json?service=dota2",
-    "type": "steamstat"
+    "api_url": "https://api.steampowered.com/",
+    "type": "probe"
   }
 }

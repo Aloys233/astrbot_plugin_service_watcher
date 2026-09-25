@@ -41,6 +41,22 @@ class StatusPageAdapter(BaseAdapter):
         'Unknown': '未知'
     }
 
+    @staticmethod
+    def _build_timeline(updates: Any, limit: int = 20) -> List[Dict[str, Any]]:
+        """提取事件/维护的更新时间线（最新的在前）。"""
+        if not isinstance(updates, list):
+            return []
+        timeline = []
+        for update in updates:
+            if not isinstance(update, dict):
+                continue
+            timeline.append({
+                'status': update.get('status'),
+                'body': update.get('body'),
+                'created_at': update.get('created_at') or update.get('display_at'),
+            })
+        return timeline[:limit]
+
     async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
         data = await client.fetch_json(service_name, api_url)
         if not data:
@@ -50,6 +66,8 @@ class StatusPageAdapter(BaseAdapter):
         indicator = status.get('indicator', 'none')
         raw_description = status.get('description', 'Unknown')
         incidents = data.get('incidents', []) if isinstance(data.get('incidents'), list) else []
+        maintenances = data.get('scheduled_maintenances', []) if isinstance(
+            data.get('scheduled_maintenances'), list) else []
         page_url = data.get('page', {}).get('url')
 
         # 翻译描述
@@ -82,20 +100,44 @@ class StatusPageAdapter(BaseAdapter):
                 'created_at': incident.get('created_at'),
                 'updated_at': incident_updated,
                 'summary': latest_update.get('body'),
-                'link': incident.get('shortlink')
+                'link': incident.get('shortlink'),
+                'updates': self._build_timeline(updates)
             })
 
         incident_signature = ",".join(sorted(incident_signature_parts)) or "no_incidents"
+
+        # 计划维护也纳入状态签名，避免开始/结束维护时漏报
+        maintenance_parts = []
+        normalized_maintenances = []
+        for maintenance in maintenances:
+            if not isinstance(maintenance, dict):
+                continue
+            m_id = str(maintenance.get('id', 'unknown'))
+            m_status = maintenance.get('status', 'unknown')
+            maintenance_parts.append(f"{m_id}:{m_status}")
+            normalized_maintenances.append({
+                'id': m_id,
+                'title': maintenance.get('name', '计划维护'),
+                'status': m_status,
+                'scheduled_for': maintenance.get('scheduled_for'),
+                'updated_at': maintenance.get('updated_at'),
+                'link': maintenance.get('shortlink'),
+                'updates': self._build_timeline(maintenance.get('incident_updates'))
+            })
+
+        maintenance_signature = ",".join(sorted(maintenance_parts)) or "no_maintenances"
 
         return {
             'indicator': indicator,
             'description': description,
             'raw_status': data,
-            'id': f"{indicator}|{description}|{incident_signature}",
+            'id': f"{indicator}|{description}|{incident_signature}|{maintenance_signature}",
             'details': {
                 'page_url': page_url,
                 'incident_count': len(normalized_incidents),
-                'incidents': normalized_incidents
+                'incidents': normalized_incidents,
+                'maintenance_count': len(normalized_maintenances),
+                'maintenances': normalized_maintenances
             }
         }
 
@@ -281,6 +323,8 @@ class AliyunAdapter(BaseAdapter):
         # 阿里云返回 {"data": [], "total": 0, "success": true, ...}
         # data 是正在进行的事件列表
         events = data.get('data', [])
+        if not isinstance(events, list):
+            events = []
 
         if not events:
             return {
@@ -316,5 +360,51 @@ class AliyunAdapter(BaseAdapter):
             'details': {
                 'event_count': len(normalized_events),
                 'events': normalized_events
+            }
+        }
+
+
+class ProbeAdapter(BaseAdapter):
+    """通用 HTTP 探测适配器。
+
+    直接 GET 目标 URL，根据响应判断服务是否可达。适用于没有官方状态页的
+    服务（如国内大部分平台）：任何 HTTP 响应都证明服务在线，即使返回
+    401/404 也说明服务本身可达（未带凭证时这是预期响应）。
+    """
+
+    async def fetch_status(self, client, service_name: str, api_url: str) -> Optional[Dict[str, Any]]:
+        result = await client.fetch_probe(service_name, api_url)
+
+        reachable = result.get('reachable', False)
+        status_code = result.get('status_code')
+        latency_ms = result.get('latency_ms')
+        error = result.get('error')
+
+        if reachable:
+            if status_code is None or status_code >= 500 or status_code == 429:
+                indicator = 'major'
+                state = '服务异常'
+            else:
+                indicator = 'none'
+                state = '运行正常'
+            description = f"{state} (HTTP {status_code}, {latency_ms}ms)"
+            status_id = f"probe|{indicator}|{status_code}"
+        else:
+            # 网络层失败：可能是服务故障，也可能是监控机自身网络问题
+            indicator = 'critical'
+            description = f"无法连接 ({error or '未知错误'})"
+            status_id = f"probe|critical|unreachable"
+
+        return {
+            'indicator': indicator,
+            'description': description,
+            'id': status_id,
+            'raw_status': None,
+            'details': {
+                'target': api_url,
+                'reachable': reachable,
+                'status_code': status_code,
+                'latency_ms': latency_ms,
+                'error': error
             }
         }

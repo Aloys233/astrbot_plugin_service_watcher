@@ -22,7 +22,8 @@ def _service_type_label(service_type: str) -> str:
         "statuspage": "StatusPage",
         "rss": "RSS",
         "aliyun": "Aliyun",
-        "steamstat": "Steam"
+        "steamstat": "Steam",
+        "probe": "HTTP探测"
     }
     return labels.get(service_type, service_type)
 
@@ -64,6 +65,7 @@ def _format_time(value: Any) -> str:
 def _format_statuspage_details(info: Dict[str, Any], limit: int = 3) -> List[str]:
     details = info.get("details", {}) if isinstance(info, dict) else {}
     incidents = details.get("incidents", []) if isinstance(details.get("incidents"), list) else []
+    maintenances = details.get("maintenances", []) if isinstance(details.get("maintenances"), list) else []
     lines: List[str] = []
 
     page_url = _clean_text(details.get("page_url"), "")
@@ -90,6 +92,31 @@ def _format_statuspage_details(info: Dict[str, Any], limit: int = 3) -> List[str
             if link:
                 lines.append(f"   链接: {link}")
 
+    if maintenances:
+        lines.append(f"计划维护: {len(maintenances)} 项")
+        for maintenance in maintenances[:limit]:
+            if not isinstance(maintenance, dict):
+                continue
+            title = _clean_text(maintenance.get("title"), "计划维护")
+            scheduled_for = _format_time(maintenance.get("scheduled_for"))
+            lines.append(f"   - {title} (计划时间: {scheduled_for})")
+
+    return lines
+
+
+def _format_probe_details(info: Dict[str, Any]) -> List[str]:
+    details = info.get("details", {}) if isinstance(info, dict) else {}
+
+    target = _clean_text(details.get("target"), "-")
+    status_code = details.get("status_code")
+    latency_ms = details.get("latency_ms")
+    error = details.get("error")
+
+    lines = [f"探测目标: {target}"]
+    if status_code is not None:
+        lines.append(f"HTTP 状态码: {status_code} | 延迟: {latency_ms}ms")
+    else:
+        lines.append(f"错误: {_clean_text(error, '无法连接（也可能是监控机自身网络问题）')}")
     return lines
 
 
@@ -151,7 +178,7 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
     emoji = StatusChecker.get_emoji(indicator)
     changed_text = "是" if result.get("changed") else "否"
 
-    header = "状态变更通知" if service_type in {"statuspage", "aliyun"} else "订阅更新通知"
+    header = "状态变更通知" if service_type in {"statuspage", "aliyun", "probe"} else "订阅更新通知"
     lines = [
         f"{emoji} [{service_name}] {header}",
         f"类型: {_service_type_label(service_type)}",
@@ -165,6 +192,8 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
         lines.extend(_format_rss_details(info))
     elif service_type == "aliyun":
         lines.extend(_format_aliyun_details(info, limit=3))
+    elif service_type == "probe":
+        lines.extend(_format_probe_details(info))
 
     return "\n".join(lines)
 
@@ -206,6 +235,7 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
         if service_type == "statuspage":
             details = info.get("details", {}) if isinstance(info, dict) else {}
             incidents = details.get("incidents", []) if isinstance(details.get("incidents"), list) else []
+            maintenances = details.get("maintenances", []) if isinstance(details.get("maintenances"), list) else []
             if incidents:
                 lines.append(f"   活跃事件: {len(incidents)} 个")
                 for incident in incidents[:2]:
@@ -215,6 +245,17 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
                     lines.append(f"   - {title}")
             else:
                 lines.append("   活跃事件: 无")
+            if maintenances:
+                lines.append(f"   计划维护: {len(maintenances)} 项")
+
+        elif service_type == "probe":
+            details = info.get("details", {}) if isinstance(info, dict) else {}
+            status_code = details.get("status_code")
+            latency_ms = details.get("latency_ms")
+            if status_code is not None:
+                lines.append(f"   HTTP {status_code} | 延迟: {latency_ms}ms")
+            else:
+                lines.append(f"   无法连接（{_clean_text(details.get('error'), '未知错误')}）")
 
         elif service_type == "rss":
             details = info.get("details", {}) if isinstance(info, dict) else {}
