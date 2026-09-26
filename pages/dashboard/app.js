@@ -87,6 +87,9 @@ function summaryHTML(summary) {
 
 function cardMetaHTML(item) {
   const parts = [];
+  if (item.uptime_7d != null) {
+    parts.push(`${t("uptime7", "7天可用率")} ${item.uptime_7d}%`);
+  }
   if (item.type === "statuspage") {
     parts.push(`${t("incidents", "活跃事件")}: ${item.incidents ?? 0}`);
     if (item.maintenances) parts.push(`${t("maintenances", "计划维护")}: ${item.maintenances}`);
@@ -320,6 +323,14 @@ function truncationNote(count, items) {
     : "";
 }
 
+function uptimeSectionHTML(item) {
+  if (item.uptime_7d == null && item.uptime_30d == null) return "";
+  return `<div class="modal-section"><div class="kv">
+    <span class="k">${esc(t("uptime7", "7 天可用率"))}</span><span>${item.uptime_7d != null ? esc(String(item.uptime_7d)) + "%" : "-"}</span>
+    <span class="k">${esc(t("uptime30", "30 天可用率"))}</span><span>${item.uptime_30d != null ? esc(String(item.uptime_30d)) + "%" : "-"}</span>
+  </div></div>`;
+}
+
 function renderDetailBody(item) {
   if (item.status !== "ok") {
     return `<p class="modal-empty">${esc(t("fetchFailed", "获取失败"))}: ${esc(item.error || "-")}</p>`;
@@ -328,7 +339,7 @@ function renderDetailBody(item) {
   if (item.type === "statuspage") {
     const incidents = item.incident_items || [];
     const maintenances = item.maintenance_items || [];
-    let html = `<div class="modal-section">
+    let html = uptimeSectionHTML(item) + `<div class="modal-section">
       <h3>${esc(t("incidents", "活跃事件"))} (${item.incidents ?? incidents.length})</h3>
       ${incidents.length ? incidents.map(incidentHTML).join("") : `<p class="modal-empty">${esc(t("noIncidents", "无活跃事件"))}</p>`}
       ${truncationNote(item.incidents ?? 0, incidents)}
@@ -345,7 +356,7 @@ function renderDetailBody(item) {
   }
 
   if (item.type === "probe") {
-    return `<div class="modal-section"><div class="kv">
+    return uptimeSectionHTML(item) + `<div class="modal-section"><div class="kv">
       <span class="k">${esc(t("target", "探测目标"))}</span><span>${esc(item.target || "-")}</span>
       <span class="k">${esc(t("httpStatus", "HTTP 状态码"))}</span><span>${item.http_status != null ? esc(String(item.http_status)) : "-"}</span>
       <span class="k">${esc(t("latencyLabel", "延迟"))}</span><span>${item.latency_ms != null ? esc(String(item.latency_ms)) + "ms" : "-"}</span>
@@ -355,7 +366,7 @@ function renderDetailBody(item) {
 
   if (item.type === "aliyun") {
     const events = item.event_items || [];
-    return `<div class="modal-section">
+    return uptimeSectionHTML(item) + `<div class="modal-section">
       <h3>${esc(t("activeEvents", "活跃事件"))} (${item.events ?? events.length})</h3>
       ${events.length ? events.map(eventHTML).join("") : `<p class="modal-empty">${esc(t("noIncidents", "无活跃事件"))}</p>`}
     </div>`;
@@ -363,7 +374,7 @@ function renderDetailBody(item) {
 
   if (item.type === "rss") {
     const entry = item.entry || {};
-    return `<div class="modal-section"><div class="kv">
+    return uptimeSectionHTML(item) + `<div class="modal-section"><div class="kv">
       <span class="k">${esc(t("rssLatest", "最新动态"))}</span><span>${esc(entry.title || "-")}</span>
       <span class="k">${esc(t("publishedAt", "发布时间"))}</span><span>${esc(fmtTime(entry.published))}</span>
       <span class="k">${esc(t("author", "作者"))}</span><span>${esc(entry.author || "-")}</span>

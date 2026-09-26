@@ -41,6 +41,41 @@ class StatusPageAdapter(BaseAdapter):
         'Unknown': '未知'
     }
 
+    # 事件/维护状态的中文映射（仅用于展示；变更检测仍使用原始 status）
+    STATUS_CN = {
+        'investigating': '调查中',
+        'identified': '已定位',
+        'monitoring': '监控中',
+        'resolved': '已解决',
+        'postmortem': '复盘中',
+        'scheduled': '已排期',
+        'in_progress': '进行中',
+        'verifying': '验证中',
+        'completed': '已完成',
+        'cancelled': '已取消'
+    }
+
+    # 影响等级的中文映射（固定词表，静态映射即可）
+    IMPACT_CN = {
+        'none': '无',
+        'maintenance': '维护',
+        'minor': '轻微',
+        'major': '较重',
+        'critical': '严重'
+    }
+
+    @classmethod
+    def status_cn(cls, status: Any) -> str:
+        """事件/维护状态的中文展示文本；未知状态返回原文。"""
+        text = str(status or '').strip()
+        return cls.STATUS_CN.get(text.lower(), text) or '未知'
+
+    @classmethod
+    def impact_cn(cls, impact: Any) -> str:
+        """影响等级的中文展示文本；未知等级返回原文。"""
+        text = str(impact or '').strip()
+        return cls.IMPACT_CN.get(text.lower(), text) or '未知'
+
     @staticmethod
     def _build_timeline(updates: Any, limit: int = 20) -> List[Dict[str, Any]]:
         """提取事件/维护的更新时间线（最新的在前）。"""
@@ -96,7 +131,9 @@ class StatusPageAdapter(BaseAdapter):
                 'id': incident_id,
                 'title': incident.get('name', '未知事件'),
                 'status': incident_status,
+                'status_cn': self.status_cn(incident_status),
                 'impact': incident.get('impact', 'unknown'),
+                'impact_cn': self.impact_cn(incident.get('impact', 'unknown')),
                 'created_at': incident.get('created_at'),
                 'updated_at': incident_updated,
                 'summary': latest_update.get('body'),
@@ -119,6 +156,7 @@ class StatusPageAdapter(BaseAdapter):
                 'id': m_id,
                 'title': maintenance.get('name', '计划维护'),
                 'status': m_status,
+                'status_cn': self.status_cn(m_status),
                 'scheduled_for': maintenance.get('scheduled_for'),
                 'updated_at': maintenance.get('updated_at'),
                 'link': maintenance.get('shortlink'),

@@ -903,3 +903,118 @@ textarea:focus-visible {
   padding: 60px 20px;
   color: var(--text-2);
 }
+
+/* ---------- 响应式适配 ---------- */
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px 12px 40px;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .page-header h1 {
+    font-size: 18px;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  /* 标签页横向滚动 */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 8px 12px;
+  }
+
+  /* 卡片网格降为窄列 */
+  .status-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+
+  /* 统计条两列 */
+  .summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 弹窗近全屏 */
+  .modal {
+    width: calc(100vw - 24px);
+    max-height: 86vh;
+  }
+
+  .modal-body {
+    padding: 14px;
+  }
+
+  .modal-foot {
+    padding: 12px 14px;
+  }
+
+  /* 管理页服务行在窄屏下可换行 */
+  .service-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 12px 10px 32px;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat {
+    padding: 10px 12px;
+  }
+
+  .stat .num {
+    font-size: 20px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .card-name {
+    font-size: 13px;
+  }
+
+  .card-desc {
+    font-size: 12px;
+  }
+
+  .tab {
+    font-size: 13px;
+  }
+
+  /* 弹窗标题与关闭按钮不挤压 */
+  .modal-title {
+    font-size: 15px;
+  }
+
+  .incident-head {
+    flex-wrap: wrap;
+  }
+}

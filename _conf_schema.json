@@ -5,6 +5,48 @@
     "description": "检查间隔时间（秒）",
     "hint": "最小值 10 秒，过短会频繁请求上游 API"
   },
+  "enable_translation": {
+    "type": "bool",
+    "default": false,
+    "description": "启用 AI 翻译",
+    "hint": "开启后，状态通知中的英文事件标题/说明将翻译为中文"
+  },
+  "translation_provider": {
+    "type": "string",
+    "default": "",
+    "description": "翻译使用的模型提供商",
+    "hint": "选择 WebUI 中已配置的 LLM 提供商，仅在启用 AI 翻译后生效",
+    "_special": "select_provider"
+  },
+  "notify_policy": {
+    "type": "string",
+    "default": "high",
+    "options": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "description": "推送灵敏度",
+    "hint": "low=仅 major/critical 级故障与恢复；medium=影响升级+恢复+新增事件；high=全部变化"
+  },
+  "maintenance_remind_minutes": {
+    "type": "int",
+    "default": 60,
+    "description": "维护开始前提醒窗口（分钟）",
+    "hint": "计划维护开始前 N 分钟发送提醒，0 表示关闭提醒"
+  },
+  "daily_summary_enabled": {
+    "type": "bool",
+    "default": false,
+    "description": "启用每日状态摘要",
+    "hint": "每天在指定时间推送一次所有服务的状态汇总"
+  },
+  "daily_summary_time": {
+    "type": "string",
+    "default": "09:00",
+    "description": "每日摘要推送时间",
+    "hint": "24 小时制 HH:MM 格式，仅在启用每日状态摘要后生效"
+  },
   "notify_targets": {
     "type": "list",
     "default": [],

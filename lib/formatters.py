@@ -1,11 +1,10 @@
 """消息格式化工具。"""
 
-import html
-import re
-from datetime import datetime, timezone
 from typing import Dict, Optional, TypedDict, Any, List
 
 from .status_checker import StatusChecker
+from .diff import _statuspage_report, _aliyun_report
+from .text import clean_text as _clean_text, clean_summary as _clean_summary, format_time as _format_time
 
 
 class ServiceStatusResult(TypedDict):
@@ -28,40 +27,6 @@ def _service_type_label(service_type: str) -> str:
     return labels.get(service_type, service_type)
 
 
-def _clean_text(value: Any, default: str = "-") -> str:
-    if value is None:
-        return default
-    text = str(value).strip()
-    text = html.unescape(re.sub(r"\s+", " ", text))
-    return text if text else default
-
-
-def _clean_summary(value: Any, max_len: int = 160) -> str:
-    raw = _clean_text(value, default="")
-    if not raw:
-        return "-"
-    no_tags = re.sub(r"<[^>]+>", " ", raw)
-    text = _clean_text(no_tags, default="-")
-    if len(text) > max_len:
-        return f"{text[:max_len - 3]}..."
-    return text
-
-
-def _format_time(value: Any) -> str:
-    text = _clean_text(value, default="")
-    if not text:
-        return "-"
-
-    try:
-        normalized = text.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(normalized)
-        if dt.tzinfo:
-            return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        return dt.strftime("%Y-%m-%d %H:%M")
-    except (ValueError, TypeError):
-        return text
-
-
 def _format_statuspage_details(info: Dict[str, Any], limit: int = 3) -> List[str]:
     details = info.get("details", {}) if isinstance(info, dict) else {}
     incidents = details.get("incidents", []) if isinstance(details.get("incidents"), list) else []
@@ -80,8 +45,8 @@ def _format_statuspage_details(info: Dict[str, Any], limit: int = 3) -> List[str
             if not isinstance(incident, dict):
                 continue
             title = _clean_text(incident.get("title"), "未知事件")
-            status = _clean_text(incident.get("status"), "unknown")
-            impact = _clean_text(incident.get("impact"), "unknown")
+            status = _clean_text(incident.get("status_cn") or incident.get("status"), "unknown")
+            impact = _clean_text(incident.get("impact_cn") or incident.get("impact"), "unknown")
             updated_at = _format_time(incident.get("updated_at"))
             summary = _clean_summary(incident.get("summary"))
             link = _clean_text(incident.get("link"), "")
@@ -168,6 +133,51 @@ def _format_aliyun_details(info: Dict[str, Any], limit: int = 3) -> List[str]:
     return lines
 
 
+def _format_statuspage_diff(info: Dict[str, Any], previous: Optional[Dict[str, Any]]) -> Optional[List[str]]:
+    """基于上次快照生成"本次变化"格式的内容；无旧快照或无差异时返回 None。"""
+    if not isinstance(previous, dict):
+        return None
+    details = info.get('details', {}) if isinstance(info, dict) else {}
+    report = _statuspage_report(previous, details)
+    if report is None:
+        return None
+
+    lines = ["📌 本次变化:"]
+    lines.extend(report['lines'])
+
+    unchanged = []
+    if report['unchanged_incidents']:
+        unchanged.append(f"其余 {report['unchanged_incidents']} 个事件")
+    if report['unchanged_maintenances']:
+        unchanged.append(f"计划维护 {report['unchanged_maintenances']} 项")
+    if unchanged:
+        lines.append("")
+        lines.append(f"✅ 无变化: {'、'.join(unchanged)}")
+
+    page_url = _clean_text(details.get('page_url'), "")
+    if page_url:
+        lines.append(f"监控页: {page_url}")
+    return lines
+
+
+def _format_aliyun_diff(info: Dict[str, Any], previous: Optional[Dict[str, Any]]) -> Optional[List[str]]:
+    """基于上次快照生成"本次变化"格式的内容；无旧快照或无差异时返回 None。"""
+    if not isinstance(previous, dict):
+        return None
+    details = info.get('details', {}) if isinstance(info, dict) else {}
+    report = _aliyun_report(previous, details)
+    if report is None:
+        return None
+
+    lines = ["📌 本次变化:"]
+    lines.extend(report['lines'])
+
+    if report['unchanged_events']:
+        lines.append("")
+        lines.append(f"✅ 无变化: 其余 {report['unchanged_events']} 个事件")
+    return lines
+
+
 def format_status_change_message(service_name: str, result: ServiceStatusResult) -> str:
     """格式化状态变更通知消息。"""
     indicator = result['indicator']
@@ -187,11 +197,21 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
     ]
 
     if service_type == "statuspage":
-        lines.extend(_format_statuspage_details(info, limit=3))
+        diff_lines = _format_statuspage_diff(info, result.get('previous'))
+        if diff_lines:
+            lines.append("")
+            lines.extend(diff_lines)
+        else:
+            lines.extend(_format_statuspage_details(info, limit=3))
     elif service_type == "rss":
         lines.extend(_format_rss_details(info))
     elif service_type == "aliyun":
-        lines.extend(_format_aliyun_details(info, limit=3))
+        diff_lines = _format_aliyun_diff(info, result.get('previous'))
+        if diff_lines:
+            lines.append("")
+            lines.extend(diff_lines)
+        else:
+            lines.extend(_format_aliyun_details(info, limit=3))
     elif service_type == "probe":
         lines.extend(_format_probe_details(info))
 
@@ -273,7 +293,7 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
                     if not isinstance(event, dict):
                         continue
                     title = _clean_text(event.get("title"), "未命名事件")
-                    status = _clean_text(event.get("status"), "unknown")
+                    status = _clean_text(event.get("status_cn") or event.get("status"), "unknown")
                     severity = _clean_text(event.get("severity"), "unknown")
                     lines.append(f"   - {title} ({status}, {severity})")
             else:

@@ -9,7 +9,7 @@ from astrbot.api import logger
 class StatusAPIClient:
     """用于从各种来源获取服务状态的 HTTP 客户端。"""
 
-    USER_AGENT = "AstrBot-ServiceWatcher/0.3 (+https://github.com/Aloys233/astrbot_plugin_service_watcher)"
+    USER_AGENT = "AstrBot-ServiceWatcher/0.5 (+https://github.com/Aloys233/astrbot_plugin_service_watcher)"
 
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
@@ -28,39 +28,53 @@ class StatusAPIClient:
         if self.session and not self.session.closed:
             await self.session.close()
 
+    RETRY_DELAY = 2  # 网络异常重试前的等待秒数
+
     async def fetch_json(self, service_name: str, api_url: str) -> Optional[dict]:
-        """从 API 获取 JSON 数据。"""
-        try:
-            session = await self._get_session()
-            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                if response.status != 200:
-                    logger.error(f"[{service_name}] API请求失败: HTTP {response.status}")
-                    return None
-                return await response.json()
-        except Exception as e:
-            import traceback
-            logger.warning(f"[{service_name}] 获取 JSON 状态失败: {repr(e)}")
-            logger.debug(traceback.format_exc())
-            return None
+        """从 API 获取 JSON 数据（网络异常时自动重试一次）。"""
+        for attempt in range(2):
+            try:
+                session = await self._get_session()
+                async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status != 200:
+                        logger.error(f"[{service_name}] API请求失败: HTTP {response.status}")
+                        return None
+                    return await response.json()
+            except Exception as e:
+                if attempt == 0:
+                    logger.warning(f"[{service_name}] 获取 JSON 状态失败，即将重试: {repr(e)}")
+                    await asyncio.sleep(self.RETRY_DELAY)
+                    continue
+                import traceback
+                logger.warning(f"[{service_name}] 获取 JSON 状态失败: {repr(e)}")
+                logger.debug(traceback.format_exc())
+                return None
+        return None
 
     async def fetch_rss(self, service_name: str, rss_url: str) -> Optional[dict]:
-        """获取并解析 RSS 源。"""
-        try:
-            session = await self._get_session()
-            async with session.get(rss_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                if response.status != 200:
-                    logger.error(f"[{service_name}] RSS请求失败: HTTP {response.status}")
-                    return None
-                content = await response.read()
+        """获取并解析 RSS 源（网络异常时自动重试一次）。"""
+        for attempt in range(2):
+            try:
+                session = await self._get_session()
+                async with session.get(rss_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status != 200:
+                        logger.error(f"[{service_name}] RSS请求失败: HTTP {response.status}")
+                        return None
+                    content = await response.read()
 
-                # 在执行器中解析以避免阻塞事件循环
-                loop = asyncio.get_running_loop()
-                return await loop.run_in_executor(None, feedparser.parse, content)
-        except Exception as e:
-            import traceback
-            logger.warning(f"[{service_name}] 获取 RSS 状态失败: {repr(e)}")
-            logger.debug(traceback.format_exc())
-            return None
+                    # 在执行器中解析以避免阻塞事件循环
+                    loop = asyncio.get_running_loop()
+                    return await loop.run_in_executor(None, feedparser.parse, content)
+            except Exception as e:
+                if attempt == 0:
+                    logger.warning(f"[{service_name}] 获取 RSS 状态失败，即将重试: {repr(e)}")
+                    await asyncio.sleep(self.RETRY_DELAY)
+                    continue
+                import traceback
+                logger.warning(f"[{service_name}] 获取 RSS 状态失败: {repr(e)}")
+                logger.debug(traceback.format_exc())
+                return None
+        return None
 
     async def fetch_probe(self, service_name: str, probe_url: str) -> Dict[str, Any]:
         """探测 URL 可达性。
@@ -142,6 +156,29 @@ class StatusChecker:
         """获取状态指示器的表情符号。"""
         return StatusChecker.STATUS_EMOJI.get(indicator, '📊')
 
+    def _extract_snapshot(self, service_type: str, status_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """提取需要持久化的状态快照（用于下次变更时做 diff）。
+
+        仅 statuspage/aliyun 需要快照；statuspage 去掉 updates 时间线以减小体积。
+        """
+        details = status_info.get('details')
+        if not isinstance(details, dict):
+            return None
+        if service_type == 'statuspage':
+            snapshot = {
+                'indicator': status_info.get('indicator'),
+                'page_url': details.get('page_url'),
+                'incidents': details.get('incidents', []),
+                'maintenances': details.get('maintenances', []),
+            }
+            for item in snapshot['incidents'] + snapshot['maintenances']:
+                if isinstance(item, dict):
+                    item.pop('updates', None)
+            return snapshot
+        if service_type == 'aliyun':
+            return {'indicator': status_info.get('indicator'), 'events': details.get('events', [])}
+        return None
+
     async def check_service(
             self,
             service_name: str,
@@ -174,7 +211,9 @@ class StatusChecker:
         # 检查 KV 存储中的上一次状态（使用 Star 的异步 KV 方法）
         # key 中包含服务类型：类型或数据源调整后旧缓存自然失效，避免升级后误报变更
         kv_key = f"service_watcher_{service_name}_{service_type}_last_id"
+        snapshot_key = f"service_watcher_{service_name}_{service_type}_last_snapshot"
         last_id = await self.star.get_kv_data(kv_key, None)
+        last_snapshot = await self.star.get_kv_data(snapshot_key, None)
 
         # 调试：记录状态
         logger.debug(f"[{service_name}] current_id={current_id}, last_id={last_id}")
@@ -183,15 +222,19 @@ class StatusChecker:
         if last_id is None:
             if update_db:
                 await self.star.put_kv_data(kv_key, current_id)
+                snapshot = self._extract_snapshot(service_type, status_info)
+                if snapshot is not None:
+                    await self.star.put_kv_data(snapshot_key, snapshot)
                 logger.info(f"[{service_name}] 首次初始化状态: {current_id}")
-            
+
             return {
                 'changed': False,  # 首次运行不算作“变更”
                 'data': status_info.get('raw_status'),
                 'type': service_type,
                 'indicator': status_info['indicator'],
                 'description': status_info['description'],
-                'info': status_info
+                'info': status_info,
+                'previous': last_snapshot,
             }
 
         # 与上一次状态进行比较
@@ -200,6 +243,9 @@ class StatusChecker:
         # 仅当状态变更且 update_db 为 True 时更新存储
         if status_changed and update_db:
             await self.star.put_kv_data(kv_key, current_id)
+            snapshot = self._extract_snapshot(service_type, status_info)
+            if snapshot is not None:
+                await self.star.put_kv_data(snapshot_key, snapshot)
             logger.info(f"[{service_name}] 状态变化: {last_id} -> {current_id}")
         else:
             logger.debug(f"[{service_name}] 状态未变化 (update_db={update_db})")
@@ -210,5 +256,6 @@ class StatusChecker:
             'type': service_type,
             'indicator': status_info['indicator'],
             'description': status_info['description'],
-            'info': status_info
+            'info': status_info,
+            'previous': last_snapshot,
         }

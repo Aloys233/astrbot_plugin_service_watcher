@@ -3,6 +3,7 @@
 import asyncio
 from typing import AsyncGenerator, Optional
 
+from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from .formatters import format_status_list, format_test_result
@@ -12,15 +13,17 @@ from .status_checker import StatusChecker
 class CommandHandlers:
     """服务状态监控命令的处理器。"""
 
-    def __init__(self, status_checker: StatusChecker, services: dict):
+    def __init__(self, status_checker: StatusChecker, services: dict, translator=None):
         """初始化命令处理器。
 
         Args:
             status_checker: StatusChecker 实例
             services: 已启用服务的字典
+            translator: 可选的 Translator 实例（AI 翻译）
         """
         self.status_checker = status_checker
         self.services = services
+        self.translator = translator
 
     def _find_service(self, service_name: str):
         """按显示名或 services.json 标识符查找服务（大小写不敏感）。"""
@@ -108,6 +111,13 @@ class CommandHandlers:
                 ignore_cache=True,
                 update_db=False  # 测试命令不应影响监控状态
             )
+
+            # 可选：AI 翻译（失败时保留原文）
+            if result and self.translator:
+                try:
+                    await self.translator.translate_result(result)
+                except Exception as e:
+                    logger.warning(f"[{service.name}] 翻译失败，使用原文展示: {e}")
 
             response = format_test_result(service.name, result)
             yield event.plain_result(response)
