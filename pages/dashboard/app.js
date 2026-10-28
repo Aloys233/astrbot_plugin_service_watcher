@@ -32,6 +32,7 @@ const t = (key, fallback) => {
 
 const TYPE_LABELS = {
   statuspage: "StatusPage",
+  flashduty: "Flashduty",
   aliyun: "Aliyun",
   probe: "HTTP",
   rss: "RSS",
@@ -85,12 +86,18 @@ function summaryHTML(summary) {
     .join("");
 }
 
+function uptimeLabel(item, days) {
+  return item.type === "flashduty"
+    ? t(`sample${days}`, `近${days}天采样正常率`)
+    : t(`uptime${days}`, `${days}天可用率`);
+}
+
 function cardMetaHTML(item) {
   const parts = [];
   if (item.uptime_7d != null) {
-    parts.push(`${t("uptime7", "7天可用率")} ${item.uptime_7d}%`);
+    parts.push(`${uptimeLabel(item, 7)} ${item.uptime_7d}%`);
   }
-  if (item.type === "statuspage") {
+  if (["statuspage", "flashduty"].includes(item.type)) {
     parts.push(`${t("incidents", "活跃事件")}: ${item.incidents ?? 0}`);
     if (item.maintenances) parts.push(`${t("maintenances", "计划维护")}: ${item.maintenances}`);
   } else if (item.type === "probe") {
@@ -123,7 +130,7 @@ function cardHTML(item) {
         </div>
         <div class="card-status">
           <span class="dot"></span>
-          <span class="card-desc">${esc(t("fetchFailed", "获取失败"))}</span>
+          <span class="card-desc">${esc(item.type === "flashduty" ? t("sourceFetchFailed", "官方状态页采集失败（监控组件状态未知）") : t("fetchFailed", "获取失败"))}</span>
         </div>
         <div class="card-error-text">${esc(item.error || "-")}</div>
       </div>`;
@@ -276,6 +283,8 @@ function timelineHTML(updates) {
 
 function incidentHTML(i) {
   const updates = i.updates || [];
+  const summary = updates.length ? i.description : i.summary;
+  const showSummary = summary && !updates.some((u) => stripTags(u.body).trim() === stripTags(summary).trim());
   return `
     <div class="incident">
       <div class="incident-head">
@@ -285,7 +294,7 @@ function incidentHTML(i) {
       </div>
       <div class="incident-meta">${esc(t("startedAt", "开始"))}: ${esc(fmtTime(i.created_at))} · ${esc(t("lastUpdate", "最新更新"))}: ${esc(fmtTime(i.updated_at))}</div>
       ${timelineHTML(updates)}
-      ${!updates.length && i.summary ? `<div class="incident-summary">${esc(stripTags(i.summary))}</div>` : ""}
+      ${showSummary ? `<div class="incident-summary">${esc(stripTags(summary))}</div>` : ""}
       ${linkHTML(i.link)}
     </div>`;
 }
@@ -326,17 +335,17 @@ function truncationNote(count, items) {
 function uptimeSectionHTML(item) {
   if (item.uptime_7d == null && item.uptime_30d == null) return "";
   return `<div class="modal-section"><div class="kv">
-    <span class="k">${esc(t("uptime7", "7 天可用率"))}</span><span>${item.uptime_7d != null ? esc(String(item.uptime_7d)) + "%" : "-"}</span>
-    <span class="k">${esc(t("uptime30", "30 天可用率"))}</span><span>${item.uptime_30d != null ? esc(String(item.uptime_30d)) + "%" : "-"}</span>
-  </div></div>`;
+    <span class="k">${esc(uptimeLabel(item, 7))}</span><span>${item.uptime_7d != null ? esc(String(item.uptime_7d)) + "%" : "-"}</span>
+    <span class="k">${esc(uptimeLabel(item, 30))}</span><span>${item.uptime_30d != null ? esc(String(item.uptime_30d)) + "%" : "-"}</span>
+  </div>${item.type === "flashduty" ? `<p class="hint">${esc(t("sampleHint", "本机有效采样中正常状态的比例，可能不足完整周期；不代表官方历史可用率。"))}</p>` : ""}</div>`;
 }
 
 function renderDetailBody(item) {
   if (item.status !== "ok") {
-    return `<p class="modal-empty">${esc(t("fetchFailed", "获取失败"))}: ${esc(item.error || "-")}</p>`;
+    return `<p class="modal-empty">${esc(item.type === "flashduty" ? t("sourceFetchFailed", "官方状态页采集失败（监控组件状态未知）") : t("fetchFailed", "获取失败"))}: ${esc(item.error || "-")}</p>`;
   }
 
-  if (item.type === "statuspage") {
+  if (["statuspage", "flashduty"].includes(item.type)) {
     const incidents = item.incident_items || [];
     const maintenances = item.maintenance_items || [];
     let html = uptimeSectionHTML(item) + `<div class="modal-section">
@@ -344,7 +353,7 @@ function renderDetailBody(item) {
       ${incidents.length ? incidents.map(incidentHTML).join("") : `<p class="modal-empty">${esc(t("noIncidents", "无活跃事件"))}</p>`}
       ${truncationNote(item.incidents ?? 0, incidents)}
     </div>`;
-    html += `<div class="modal-section">
+    if (item.type === "statuspage") html += `<div class="modal-section">
       <h3>${esc(t("maintenances", "计划维护"))} (${item.maintenances ?? maintenances.length})</h3>
       ${maintenances.length ? maintenances.map(maintenanceHTML).join("") : `<p class="modal-empty">${esc(t("noMaintenances", "无计划维护"))}</p>`}
       ${truncationNote(item.maintenances ?? 0, maintenances)}

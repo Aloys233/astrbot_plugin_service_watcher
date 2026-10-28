@@ -56,6 +56,8 @@ class CommandHandlers:
                 service.api_url,
                 service.type,
                 ignore_cache=False,
+                component_ids=service.component_ids,
+                service_key=service.key,
                 update_db=False  # 手动检查状态时不更新数据库
             ))
 
@@ -109,6 +111,8 @@ class CommandHandlers:
                 service.api_url,
                 service.type,
                 ignore_cache=True,
+                component_ids=service.component_ids,
+                service_key=service.key,
                 update_db=False  # 测试命令不应影响监控状态
             )
 

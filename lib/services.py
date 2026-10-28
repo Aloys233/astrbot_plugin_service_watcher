@@ -1,7 +1,7 @@
 """用于服务状态监控的服务定义和注册表。"""
 
-from dataclasses import dataclass
-from typing import Dict
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 from astrbot.api import logger
 
@@ -12,8 +12,9 @@ class Service:
     key: str  # services.json 中的标识符（如 github）
     name: str
     api_url: str
-    type: str = "statuspage"  # statuspage / rss / aliyun / steamstat / probe
+    type: str = "statuspage"  # statuspage / flashduty / rss / aliyun / steamstat / probe
     enabled: bool = True
+    component_ids: List[str] = field(default_factory=list)
 
 
 
@@ -47,7 +48,8 @@ class ServiceRegistry:
                     name=value['name'],
                     api_url=value['api_url'],
                     type=value.get('type', 'statuspage'),
-                    enabled=value.get('enabled', True)
+                    enabled=value.get('enabled', True),
+                    component_ids=value.get('component_ids', [])
                 )
             return services
         except Exception as e:

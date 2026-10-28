@@ -12,6 +12,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from astrbot.api import logger
+from .adapters import EVENT_SOURCE_TYPES
 
 # 单条翻译超时（秒）
 TRANSLATE_TIMEOUT = 30
@@ -181,7 +182,7 @@ class Translator:
     ) -> List[Tuple[Dict[str, Any], str]]:
         """按服务类型收集需要翻译的 (容器, 字段) 对。"""
         targets: List[Tuple[Dict[str, Any], str]] = []
-        if service_type == 'statuspage':
+        if service_type in EVENT_SOURCE_TYPES:
             for incident in details.get('incidents', []) or []:
                 if isinstance(incident, dict):
                     targets.append((incident, 'title'))

@@ -59,7 +59,11 @@
       "group_productivity_services": "生产力与设计工具",
       "group_gaming_services": "游戏服务",
       "noServices": "没有可用的服务定义",
-      "loadFailed": "加载失败"
+      "loadFailed": "加载失败",
+      "sourceFetchFailed": "官方状态页采集失败（监控组件状态未知）",
+      "sample7": "近7天采样正常率",
+      "sample30": "近30天采样正常率",
+      "sampleHint": "本机有效采样中正常状态的比例，可能不足完整周期；不代表官方历史可用率。"
     }
   }
 }

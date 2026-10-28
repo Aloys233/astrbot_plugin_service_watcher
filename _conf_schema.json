@@ -69,7 +69,7 @@
           "enable_deepseek_api": {
             "type": "bool",
             "default": false,
-            "description": "DeepSeek API（HTTP 探测）"
+            "description": "DeepSeek（官方状态页）"
           },
           "enable_zhipu": {
             "type": "bool",

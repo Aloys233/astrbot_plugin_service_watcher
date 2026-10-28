@@ -59,7 +59,11 @@
       "group_productivity_services": "Productivity & Design",
       "group_gaming_services": "Gaming",
       "noServices": "No service definitions available",
-      "loadFailed": "Failed to load"
+      "loadFailed": "Failed to load",
+      "sourceFetchFailed": "Official status page collection failed (monitored component status unknown)",
+      "sample7": "7d sample normal rate",
+      "sample30": "30d sample normal rate",
+      "sampleHint": "Normal status among valid local samples. Coverage may be shorter than the window; this is not official historical uptime."
     }
   }
 }

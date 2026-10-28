@@ -5,7 +5,7 @@
 ## 功能特性
 
 - ✅ **专业监控**：原生支持 StatusPage.io 架构的官方状态 API（GitHub、OpenAI、Cloudflare、Moonshot AI 等）
-- ✅ **国内服务**：支持阿里云事件接口，以及 DeepSeek API、哔哩哔哩、QQ 机器人开放平台等无状态页服务的 HTTP 探测
+- ✅ **国内服务**：支持阿里云事件接口、DeepSeek 官方状态页，以及哔哩哔哩、QQ 机器人开放平台等服务的 HTTP 探测
 - ✅ **差异通知**：通知优先展示"本次变化"（新增/解决/状态更新/维护变化），一眼看清变了什么；未变化内容不再整页复读
 - ✅ **分级推送**：推送灵敏度三档可调——低（仅严重故障）、中（影响升级+恢复+新增事件）、高（全部变化）
 - ✅ **AI 翻译**（可选）：通知中的英文事件标题/说明自动翻译为中文，模型提供商可在 WebUI 中自选
@@ -21,8 +21,9 @@
 | 类型 | 说明 | 适用服务 |
 |:-----|:-----|:--------|
 | `statuspage` | StatusPage.io 标准 JSON API | GitHub、OpenAI、Cloudflare、Moonshot AI (Kimi) 等 |
+| `flashduty` | 官方状态页的 Flashduty 当前事件 JSON，默认全部组件，可按 ID 筛选 | DeepSeek |
 | `aliyun` | 阿里云官方事件接口 | 阿里云 |
-| `probe` | 通用 HTTP 探测，任何 HTTP 响应视为在线 | DeepSeek API、哔哩哔哩、Steam、QQ 机器人开放平台等 |
+| `probe` | 通用 HTTP 探测，任何 HTTP 响应视为在线 | 哔哩哔哩、Steam、QQ 机器人开放平台等 |
 | `rss` | RSS/Atom 订阅源 | 提供状态 RSS 的服务 |
 | `steamstat` | SteamStat.us JSON（已被 Cloudflare 拦截，保留兼容） | 不推荐 |
 
@@ -35,7 +36,7 @@
 
 | 分组 | 包含服务（示例） |
 |:-----|:----------------|
-| 国内服务 | Moonshot AI (Kimi)、DeepSeek API、智谱AI、硅基流动、哔哩哔哩、QQ机器人开放平台、微信公众平台、阿里云 |
+| 国内服务 | Moonshot AI (Kimi)、DeepSeek、智谱AI、硅基流动、哔哩哔哩、QQ机器人开放平台、微信公众平台、阿里云 |
 | AI 服务 | OpenAI |
 | 云服务 | Cloudflare、DigitalOcean、Vercel、Linode |
 | 开发运维 | GitHub、NPM、PyPI、CircleCI、Sentry、Datadog、Atlassian |
@@ -60,7 +61,7 @@
 | 指令                   | 说明                                   |
 |:-----------------------|:---------------------------------------|
 | `/servicestatus`       | 获取所有已启用服务的当前概览状态       |
-| `/servicetest <服务名>` | 强制触发一次指定服务的状态检查（用于调试），服务名支持配置项标识符（如 `deepseek_api`）或显示名（如 `DeepSeek API`） |
+| `/servicetest <服务名>` | 强制触发一次指定服务的状态检查（用于调试），推荐使用稳定服务标识（如 `deepseek_api`，界面显示为 `DeepSeek`） |
 | `/servicewatch`        | 查看当前会话的订阅列表（仅管理员）     |
 | `/servicewatch <服务名\|all>` | 订阅指定服务（或全部服务）到当前会话（仅管理员） |
 | `/servicewatch off <服务名\|all>` | 退订指定服务（或全部服务）（仅管理员） |
@@ -109,8 +110,11 @@
 
 无需修改任何 Python 代码。若服务有官方 StatusPage（通常在状态页域名后拼 `/api/v2/summary.json` 验证），直接使用 `statuspage` 类型；否则可用 `probe` 类型探测任意 URL。
 
+> 关于 DeepSeek：通过其官方状态页读取实时故障（Incident）事件，默认监控全部组件，暂不支持维护事件。若拉取接口异常，插件将保留基线并标为状态未知，不会误推送故障或恢复通知。
+
 ## 升级说明
 
+- **DeepSeek 监控升级**：由简单 HTTP 探测改为官方状态页数据源，显示名调整为 `DeepSeek`。现有配置和订阅保持不变，无需手动迁移；后台首次有效采集会静默建立基线（不触发误报），采样正常率重新单独累计。
 - **v0.2.x → v0.3.0**：状态缓存 key 已按服务类型区分，升级后所有服务会静默重新初始化一次（不会推送误报）；Steam 监控数据源已更换（见上）。
 - **v0.4.x → v0.5.0**：新增差异通知与推送灵敏度、AI 翻译、`/servicewatch` 订阅、维护提醒、每日摘要与可用率统计。差异通知依赖上次快照，升级后**第一次**变化通知仍为全量格式，此后自动切换为差异格式；旧配置无需迁移，新增配置项均有默认值。
 

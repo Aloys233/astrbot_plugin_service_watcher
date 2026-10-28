@@ -120,9 +120,9 @@
     "type": "statuspage"
   },
   "deepseek_api": {
-    "name": "DeepSeek API",
-    "api_url": "https://api.deepseek.com/",
-    "type": "probe"
+    "name": "DeepSeek",
+    "api_url": "https://status.deepseek.com/api/status-page/6410630422455/summary/active",
+    "type": "flashduty"
   },
   "zhipu": {
     "name": "智谱AI开放平台",

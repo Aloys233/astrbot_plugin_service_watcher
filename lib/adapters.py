@@ -1,9 +1,14 @@
 from abc import ABC, abstractmethod
+import hashlib
+import json
 import re
+from datetime import datetime, timezone
 from typing import Dict, Optional, Any, List
 from urllib.parse import urlparse, parse_qs
 
 from astrbot.api import logger
+
+EVENT_SOURCE_TYPES = ('statuspage', 'flashduty')
 
 
 class BaseAdapter(ABC):
@@ -178,6 +183,169 @@ class StatusPageAdapter(BaseAdapter):
                 'maintenances': normalized_maintenances
             }
         }
+
+
+class FlashdutyAdapter(BaseAdapter):
+    """公开 Flashduty 当前事件接口；拒绝不完整数据，避免误判恢复。
+
+    组件影响由 affected_components.status 表达，处理阶段由 change.status 表达。
+    维护尚未接入：相关维护返回采集失败，不猜测计划时间或当作正常。
+    """
+
+    COMPONENT_IMPACT = {
+        'operational': 'none',
+        'degraded': 'minor',
+        'partial_outage': 'major',
+        'full_outage': 'critical',
+    }
+    PHASES = {'investigating', 'identified', 'monitoring', 'resolved'}
+    IMPACT_ORDER = ('none', 'minor', 'major', 'critical')
+    DESCRIPTIONS = {
+        'none': '组件运行正常',
+        'minor': '组件性能降级',
+        'major': '组件部分中断',
+        'critical': '组件服务中断',
+    }
+
+    @staticmethod
+    def _text(value: Any, field: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f'Flashduty 字段无效: {field}')
+        return value.strip()
+
+    @staticmethod
+    def _time(value: Any) -> str:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise ValueError('Flashduty 事件时间无效')
+        return datetime.fromtimestamp(value, timezone.utc).isoformat()
+
+    @classmethod
+    def _worst(cls, impacts) -> str:
+        return max(impacts, key=cls.IMPACT_ORDER.index, default='none')
+
+    @classmethod
+    def parse(cls, payload: Any, component_ids: Optional[List[str]], page_url: str) -> Dict[str, Any]:
+        """解析已获取的 JSON；签名只包含所选组件和当前事件的稳定业务字段。"""
+        if not isinstance(payload, dict) or payload.get('error') or payload.get('errors') \
+                or payload.get('success') is False or payload.get('code', 0) not in (0, 200):
+            raise ValueError('Flashduty 业务响应无效')
+        data = payload.get('data')
+        if not isinstance(data, dict) or not isinstance(data.get('page'), dict):
+            raise ValueError('Flashduty 缺少 page')
+        components = data['page'].get('components')
+        changes = data.get('active_changes')
+        if not isinstance(components, list) or not components or not isinstance(changes, list):
+            raise ValueError('Flashduty 缺少完整组件或当前事件列表')
+        if component_ids is not None and (not isinstance(component_ids, list)
+                or any(not isinstance(c, str) or not c for c in component_ids)):
+            raise ValueError('Flashduty component_ids 必须为组件 ID 列表')
+        known = set()
+        for component in components:
+            if not isinstance(component, dict):
+                raise ValueError('Flashduty 组件结构无效')
+            key = cls._text(component.get('component_id'), 'component_id')
+            if key in known:
+                raise ValueError('Flashduty 组件 ID 重复')
+            known.add(key)
+        selected = set(component_ids) if component_ids else known
+        if not selected <= known:
+            raise ValueError('Flashduty 配置的组件未找到，请核对 component_ids')
+
+        incidents = []
+        seen = set()
+        for change in changes:
+            if not isinstance(change, dict):
+                raise ValueError('Flashduty 事件结构无效')
+            affected = change.get('affected_components')
+            if not isinstance(affected, list) or not affected:
+                raise ValueError('Flashduty 事件缺少影响范围')
+            scoped = []
+            affected_ids = set()
+            for component in affected:
+                if not isinstance(component, dict):
+                    raise ValueError('Flashduty 事件组件无效')
+                key = cls._text(component.get('component_id'), 'affected component_id')
+                if key not in known or key in affected_ids:
+                    raise ValueError('Flashduty 事件组件未知或重复')
+                affected_ids.add(key)
+                if key in selected:
+                    impact = cls.COMPONENT_IMPACT.get(component.get('status'))
+                    if impact is None:
+                        raise ValueError('Flashduty 组件影响状态未知')
+                    scoped.append({'id': key, 'impact': impact})
+            if not scoped:
+                continue
+            if change.get('type') != 'incident':
+                raise ValueError('Flashduty 相关事件类型尚不支持（含计划维护）')
+            phase = change.get('status')
+            if phase not in cls.PHASES:
+                raise ValueError('Flashduty 事件处理阶段未知')
+            change_id = change.get('change_id')
+            if isinstance(change_id, bool) or not isinstance(change_id, (str, int)) or not str(change_id):
+                raise ValueError('Flashduty 事件 ID 无效')
+            change_id = str(change_id)
+            if change_id in seen:
+                raise ValueError('Flashduty 事件 ID 重复')
+            seen.add(change_id)
+            title = cls._text(change.get('title'), 'title')
+            description = cls._text(change.get('description'), 'description')
+            summary = description
+            created_at = cls._time(change.get('start_at_seconds'))
+            updates = change.get('updates')
+            if not isinstance(updates, list):
+                raise ValueError('Flashduty 事件缺少 updates')
+            timeline = []
+            for update in updates:
+                if not isinstance(update, dict) \
+                        or ('status' in update and update['status'] not in cls.PHASES):
+                    raise ValueError('Flashduty 更新时间线无效')
+                body = update.get('description', '')
+                if not isinstance(body, str):
+                    raise ValueError('Flashduty 更新时间线说明无效')
+                timeline.append({
+                    'status': update.get('status', ''),
+                    'body': body.strip(),
+                    'created_at': cls._time(update.get('at_seconds')),
+                })
+            timeline.sort(key=lambda u: (u['created_at'], u['status'], u['body']), reverse=True)
+            # 两处说明可能不同步；保留最新更新与事件说明，任一编辑都参与 diff/签名。
+            if timeline and timeline[0]['body']:
+                summary = '\n\n'.join(dict.fromkeys((timeline[0]['body'], summary)))
+            impact = cls._worst(c['impact'] for c in scoped)
+            if phase == 'resolved' and impact != 'none':
+                raise ValueError('Flashduty 已解决事件仍有组件影响')
+            incidents.append({
+                'id': change_id, 'title': title, 'status': phase,
+                'status_cn': StatusPageAdapter.status_cn(phase),
+                'impact': impact, 'impact_cn': StatusPageAdapter.impact_cn(impact),
+                'summary': summary, 'description': description, 'created_at': created_at,
+                'updated_at': timeline[0]['created_at'] if timeline else created_at,
+                'link': f'{page_url}/incidents/{change_id}',
+                'components': sorted(scoped, key=lambda c: c['id']),
+                'updates': timeline[:20],
+            })
+        incidents.sort(key=lambda item: item['id'])
+        indicator = cls._worst(i['impact'] for i in incidents)
+        signature = {
+            'components': sorted(selected),
+            'incidents': [{k: v for k, v in i.items() if k not in ('updates', 'status_cn', 'impact_cn')}
+                          for i in incidents],
+        }
+        status_id = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        return {
+            'indicator': indicator,
+            'description': ('所选' if component_ids else '全部') + cls.DESCRIPTIONS[indicator],
+            'id': status_id, 'raw_status': payload,
+            'details': {'page_url': page_url, 'incidents': incidents, 'incident_count': len(incidents)},
+        }
+
+    async def fetch_status(self, client, service_name: str, api_url: str,
+                           component_ids: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        payload = await client.fetch_json(service_name, api_url)
+        if payload is None:
+            return None
+        url = urlparse(api_url)
+        return self.parse(payload, component_ids, f'{url.scheme}://{url.netloc}')
 
 
 class RSSAdapter(BaseAdapter):

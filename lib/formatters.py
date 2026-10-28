@@ -3,22 +3,26 @@
 from typing import Dict, Optional, TypedDict, Any, List
 
 from .status_checker import StatusChecker
+from .adapters import EVENT_SOURCE_TYPES
 from .diff import _statuspage_report, _aliyun_report
 from .text import clean_text as _clean_text, clean_summary as _clean_summary, format_time as _format_time
 
 
-class ServiceStatusResult(TypedDict):
+class ServiceStatusResult(TypedDict, total=False):
     changed: bool
-    data: Dict[str, Any]
+    data: Optional[Dict[str, Any]]
     type: str
     indicator: str
     description: str
     info: Dict[str, Any]
+    previous: Optional[Dict[str, Any]]
+    error: str
 
 
 def _service_type_label(service_type: str) -> str:
     labels = {
         "statuspage": "StatusPage",
+        "flashduty": "Flashduty 官方状态页",
         "rss": "RSS",
         "aliyun": "Aliyun",
         "steamstat": "Steam",
@@ -188,7 +192,7 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
     emoji = StatusChecker.get_emoji(indicator)
     changed_text = "是" if result.get("changed") else "否"
 
-    header = "状态变更通知" if service_type in {"statuspage", "aliyun", "probe"} else "订阅更新通知"
+    header = "状态变更通知" if service_type in {*EVENT_SOURCE_TYPES, "aliyun", "probe"} else "订阅更新通知"
     lines = [
         f"{emoji} [{service_name}] {header}",
         f"类型: {_service_type_label(service_type)}",
@@ -196,7 +200,7 @@ def format_status_change_message(service_name: str, result: ServiceStatusResult)
         f"检测到变化: {changed_text}"
     ]
 
-    if service_type == "statuspage":
+    if service_type in EVENT_SOURCE_TYPES:
         diff_lines = _format_statuspage_diff(info, result.get('previous'))
         if diff_lines:
             lines.append("")
@@ -252,7 +256,7 @@ def format_status_list(services_status: Dict[str, Optional[ServiceStatusResult]]
         lines.append(f"{index}. {service_name} [{_service_type_label(service_type)}]")
         lines.append(f"   状态: {emoji} {description} ({indicator})")
 
-        if service_type == "statuspage":
+        if service_type in EVENT_SOURCE_TYPES:
             details = info.get("details", {}) if isinstance(info, dict) else {}
             incidents = details.get("incidents", []) if isinstance(details.get("incidents"), list) else []
             maintenances = details.get("maintenances", []) if isinstance(details.get("maintenances"), list) else []
@@ -308,5 +312,7 @@ def format_test_result(service_name: str, result: Optional[ServiceStatusResult])
     """格式化测试命令结果。"""
     if result is None:
         return f"未能获取到 {service_name} 的状态信息"
+    if result.get('error'):
+        return f"未能获取到 {service_name} 的状态信息：{_clean_text(result['error'])}"
 
     return f"🧪 测试结果\n{format_status_change_message(service_name, result)}"

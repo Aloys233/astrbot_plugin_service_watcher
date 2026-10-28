@@ -24,6 +24,7 @@ from .lib import (
 )
 from .lib import subscriptions
 from .lib import uptime
+from .lib.adapters import EVENT_SOURCE_TYPES
 from .lib.text import format_time
 
 PLUGIN_NAME = "astrbot_plugin_service_watcher"
@@ -111,11 +112,11 @@ class ServiceWatcher(Star):
         """计算快照差异行（用于推送灵敏度判定，需在翻译前调用）。"""
         service_type = result.get('type')
         previous = result.get('previous')
-        if service_type not in ('statuspage', 'aliyun') or not isinstance(previous, dict):
+        if service_type not in (*EVENT_SOURCE_TYPES, 'aliyun') or not isinstance(previous, dict):
             return None
         info = result.get('info') or {}
         details = info.get('details') if isinstance(info, dict) else None
-        if service_type == 'statuspage':
+        if service_type in EVENT_SOURCE_TYPES:
             return diff_statuspage(previous, details)
         return diff_aliyun(previous, details)
 
@@ -261,7 +262,8 @@ class ServiceWatcher(Star):
             async def _check(name, service):
                 try:
                     return await self.status_checker.check_service(
-                        name, service.api_url, service.type,
+                        name, service.api_url, service.type, component_ids=service.component_ids,
+                        service_key=service.key,
                         ignore_cache=False, update_db=False)
                 except Exception:
                     return None
@@ -313,7 +315,8 @@ class ServiceWatcher(Star):
                         result = await self.status_checker.check_service(
                             service_name,
                             service.api_url,
-                            service.type
+                            service.type, component_ids=service.component_ids,
+                            service_key=service.key
                         )
 
                         # 记录可用性统计与连续失败计数
@@ -331,10 +334,10 @@ class ServiceWatcher(Star):
 
                         await uptime.record(
                             self.status_checker.star, service.key,
-                            result.get('indicator', '') if result else '', check_ok)
+                            result.get('indicator', '') if result else '', check_ok, service_type=service.type)
 
                         # 如果状态及变更，通知订阅者
-                        if result and result.get('changed'):
+                        if check_ok and result.get('changed'):
                             logger.info(f"[{service_name}] 检测到状态变化，准备推送通知")
                             await self._notify_status_change(service_name, service, result)
 
@@ -399,7 +402,7 @@ class ServiceWatcher(Star):
             "description": result.get("description", ""),
         })
 
-        if result.get("type") == "statuspage":
+        if result.get("type") in EVENT_SOURCE_TYPES:
             item["incidents"] = details.get("incident_count", 0)
             item["maintenances"] = details.get("maintenance_count", 0)
             incidents = details.get("incidents", [])
@@ -452,7 +455,8 @@ class ServiceWatcher(Star):
         async def _check(name, service):
             try:
                 return await self.status_checker.check_service(
-                    name, service.api_url, service.type,
+                    name, service.api_url, service.type, component_ids=service.component_ids,
+                    service_key=service.key,
                     ignore_cache=False, update_db=False,
                 )
             except Exception as e:
@@ -467,8 +471,8 @@ class ServiceWatcher(Star):
             item = self._service_item(name, self.services[name], result)
             service = self.services[name]
             try:
-                item["uptime_7d"] = (await uptime.summary(self.status_checker.star, service.key, 7))["ratio"]
-                item["uptime_30d"] = (await uptime.summary(self.status_checker.star, service.key, 30))["ratio"]
+                item["uptime_7d"] = (await uptime.summary(self.status_checker.star, service.key, 7, service_type=service.type))["ratio"]
+                item["uptime_30d"] = (await uptime.summary(self.status_checker.star, service.key, 30, service_type=service.type))["ratio"]
             except Exception:
                 pass
             services.append(item)
@@ -604,7 +608,7 @@ class ServiceWatcher(Star):
         # 无参数 / list：显示当前会话订阅列表
         if action in ("", "list", "列表", "状态"):
             subscribed = await subscriptions.list_for(star, umo)
-            names = [self.services[k].name for k in subscribed if k in self.services] or []
+            names = [service.name for service in self.services.values() if service.key in subscribed]
             lines = ["📡 当前会话的服务订阅", ""]
             if names:
                 lines.extend(f"• {name}" for name in names)

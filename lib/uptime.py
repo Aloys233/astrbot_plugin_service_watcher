@@ -25,8 +25,10 @@ def classify(indicator: str, check_ok: bool) -> str:
     return 'degraded'
 
 
-def _kv_key(service_key: str) -> str:
-    return f"{KV_PREFIX}{service_key}"
+def _kv_key(service_key: str, service_type: str = '') -> str:
+    # 仅新来源隔离旧探测历史；旧类型继续沿用原 key。
+    suffix = '_flashduty' if service_type == 'flashduty' else ''
+    return f"{KV_PREFIX}{service_key}{suffix}"
 
 
 def _prune(data: Dict[str, Any], today: date) -> None:
@@ -36,27 +38,30 @@ def _prune(data: Dict[str, Any], today: date) -> None:
         data.pop(day, None)
 
 
-async def record(star, service_key: str, indicator: str, check_ok: bool) -> None:
+async def record(star, service_key: str, indicator: str, check_ok: bool,
+                 service_type: str = '') -> None:
     """记录一次检查结果（由监控循环调用，dashboard 刷新不记录）。"""
+    if service_type == 'flashduty' and not check_ok:
+        return  # 采集失败是未知样本，不代表官方 服务停机。
     try:
         today = date.today().isoformat()
-        data = await star.get_kv_data(_kv_key(service_key), None)
+        data = await star.get_kv_data(_kv_key(service_key, service_type), None)
         data = data if isinstance(data, dict) else {}
         day = data.setdefault(today, {'ok': 0, 'degraded': 0, 'down': 0})
         day[classify(indicator, check_ok)] = day.get(classify(indicator, check_ok), 0) + 1
         _prune(data, date.today())
-        await star.put_kv_data(_kv_key(service_key), data)
+        await star.put_kv_data(_kv_key(service_key, service_type), data)
     except Exception as e:
         logger.warning(f"[{service_key}] 记录可用性数据失败: {e}")
 
 
-async def summary(star, service_key: str, days: int = 7) -> Dict[str, Any]:
+async def summary(star, service_key: str, days: int = 7, service_type: str = '') -> Dict[str, Any]:
     """返回最近 N 天的可用率统计。
 
     Returns:
         {'total': 总检查次数, 'ok': 正常次数, 'ratio': 可用率(0-100)，无数据时为 None}
     """
-    data = await star.get_kv_data(_kv_key(service_key), None)
+    data = await star.get_kv_data(_kv_key(service_key, service_type), None)
     if not isinstance(data, dict) or not data:
         return {'total': 0, 'ok': 0, 'ratio': None}
 

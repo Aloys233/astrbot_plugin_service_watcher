@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from typing import Optional, Dict, Any
 
 import aiohttp
@@ -112,7 +113,10 @@ class StatusAPIClient:
         return result
 
 
-from .adapters import StatusPageAdapter, RSSAdapter, AliyunAdapter, SteamStatAdapter, ProbeAdapter
+from .adapters import (
+    StatusPageAdapter, FlashdutyAdapter, RSSAdapter, AliyunAdapter,
+    SteamStatAdapter, ProbeAdapter, EVENT_SOURCE_TYPES,
+)
 
 class StatusChecker:
     """检查服务状态并检测多种类型的变更。"""
@@ -141,6 +145,7 @@ class StatusChecker:
         self.api_client = StatusAPIClient()
         self.adapters = {
             'statuspage': StatusPageAdapter(),
+            'flashduty': FlashdutyAdapter(),
             'rss': RSSAdapter(),
             'aliyun': AliyunAdapter(),
             'steamstat': SteamStatAdapter(),
@@ -159,17 +164,17 @@ class StatusChecker:
     def _extract_snapshot(self, service_type: str, status_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """提取需要持久化的状态快照（用于下次变更时做 diff）。
 
-        仅 statuspage/aliyun 需要快照；statuspage 去掉 updates 时间线以减小体积。
+        事件来源需要快照；去掉 updates 时间线以减小体积。
         """
         details = status_info.get('details')
         if not isinstance(details, dict):
             return None
-        if service_type == 'statuspage':
+        if service_type in EVENT_SOURCE_TYPES:
             snapshot = {
                 'indicator': status_info.get('indicator'),
                 'page_url': details.get('page_url'),
-                'incidents': details.get('incidents', []),
-                'maintenances': details.get('maintenances', []),
+                'incidents': copy.deepcopy(details.get('incidents', [])),
+                'maintenances': copy.deepcopy(details.get('maintenances', [])),
             }
             for item in snapshot['incidents'] + snapshot['maintenances']:
                 if isinstance(item, dict):
@@ -185,33 +190,47 @@ class StatusChecker:
             api_url: str,
             service_type: str = "statuspage",
             ignore_cache: bool = False,
-            update_db: bool = True
+            update_db: bool = True,
+            component_ids: Optional[list] = None,
+            service_key: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """检查服务状态并检测变更。
 
         Args:
             service_name: 服务名称
             api_url: 获取状态的 URL
-            service_type: 服务类型 (statuspage/rss/aliyun/steamstat/probe)
+            service_type: 服务类型 (statuspage/flashduty/rss/aliyun/steamstat/probe)
             ignore_cache: 如果为 True，则忽略 last_id 比较以确定 changed 标志
             update_db: 如果为 True，则使用新状态 ID 更新 KV 存储
+            service_key: Flashduty 使用稳定服务标识保存基线，避免显示名变更重置状态
         """
         adapter = self.adapters.get(service_type)
         if not adapter:
             logger.error(f"[{service_name}] Unknown service type: {service_type}")
             return None
 
-        status_info = await adapter.fetch_status(self.api_client, service_name, api_url)
+        if service_type == 'flashduty':
+            try:
+                status_info = await adapter.fetch_status(
+                    self.api_client, service_name, api_url, component_ids=component_ids)
+            except (ValueError, TypeError, OverflowError, OSError) as exc:
+                logger.warning(f'[{service_name}] Flashduty 采集失败: {exc}')
+                return {'changed': False, 'type': service_type, 'error': str(exc)}
+            if status_info is None:
+                return {'changed': False, 'type': service_type,
+                        'error': '官方状态页采集失败（网络、HTTP 或 JSON 错误）'}
+        else:
+            status_info = await adapter.fetch_status(self.api_client, service_name, api_url)
 
         if not status_info:
             return None
 
         current_id = status_info['id']
 
-        # 检查 KV 存储中的上一次状态（使用 Star 的异步 KV 方法）
-        # key 中包含服务类型：类型或数据源调整后旧缓存自然失效，避免升级后误报变更
-        kv_key = f"service_watcher_{service_name}_{service_type}_last_id"
-        snapshot_key = f"service_watcher_{service_name}_{service_type}_last_snapshot"
+        # 新事件来源以稳定标识保存基线；其他类型继续沿用原键，避免扩大迁移范围。
+        cache_identity = service_key if service_type == 'flashduty' and service_key else service_name
+        kv_key = f"service_watcher_{cache_identity}_{service_type}_last_id"
+        snapshot_key = f"service_watcher_{cache_identity}_{service_type}_last_snapshot"
         last_id = await self.star.get_kv_data(kv_key, None)
         last_snapshot = await self.star.get_kv_data(snapshot_key, None)
 
@@ -239,14 +258,20 @@ class StatusChecker:
 
         # 与上一次状态进行比较
         status_changed = ignore_cache or (current_id != last_id)
+        snapshot = self._extract_snapshot(service_type, status_info) if service_type == 'flashduty' else None
+        if service_type == 'flashduty' and not ignore_cache and snapshot == last_snapshot:
+            # 范围变化会改变签名；实际状态快照相同时只更新缓存，不推送。
+            status_changed = False
 
-        # 仅当状态变更且 update_db 为 True 时更新存储
-        if status_changed and update_db:
+        # 范围调整也更新签名，避免下次继续与旧范围比较。
+        if (status_changed or current_id != last_id) and update_db:
             await self.star.put_kv_data(kv_key, current_id)
-            snapshot = self._extract_snapshot(service_type, status_info)
+            if snapshot is None:
+                snapshot = self._extract_snapshot(service_type, status_info)
             if snapshot is not None:
                 await self.star.put_kv_data(snapshot_key, snapshot)
-            logger.info(f"[{service_name}] 状态变化: {last_id} -> {current_id}")
+            if status_changed:
+                logger.info(f"[{service_name}] 状态变化: {last_id} -> {current_id}")
         else:
             logger.debug(f"[{service_name}] 状态未变化 (update_db={update_db})")
 
